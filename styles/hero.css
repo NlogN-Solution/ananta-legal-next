@@ -1,0 +1,181 @@
+/* ============ HERO ============ */
+/* Layout follows the approved "Your Trust. Our Commitment." comp: eyebrow +
+   two-line serif headline + copy + dual CTAs + a three-icon trust row on the
+   left, and a monogram-and-column illustration on the right. Colours stay on
+   the site's own paper / deep-ink / gold tokens — nothing here hardcodes the
+   comp's navy palette. */
+
+.hero{position:relative;padding:clamp(2rem,5vh,4rem) 0 clamp(2.5rem,6vh,4.5rem);overflow:hidden}
+
+/* faint diagonal wash, echoing the comp's bottom-right sweep */
+.hero-bg{
+  position:absolute;z-index:0;pointer-events:none;
+  left:0;right:0;bottom:-8%;height:65%;
+  background:var(--bg-2);
+  clip-path:polygon(0 100%, 100% 32%, 100% 100%);
+  opacity:.55;
+}
+
+.hero-grid{
+  display:grid;grid-template-columns:1.08fr .92fr;
+  align-items:start;gap:clamp(2rem,4vw,4rem);
+  position:relative;z-index:2;
+  padding-top:clamp(.5rem,2.5vh,2rem);
+}
+.hero-copy{min-width:0}
+
+/* ---- eyebrow ---- */
+.eyebrow{
+  display:inline-flex;align-items:center;gap:.9rem;
+  font-size:.7rem;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--gold-2);margin-bottom:clamp(1.1rem,2.6vh,1.7rem);
+}
+.eyebrow-ln{width:56px;height:1px;background:var(--line-2);flex:none}
+
+/* ---- display headline ---- */
+.hero h1{
+  font-family:var(--font-display);font-weight:500;
+  font-size:clamp(1.7rem,2.6vw + .3rem,2.9rem);line-height:1.12;letter-spacing:-.012em;
+  color:var(--ink);white-space:nowrap;
+}
+.hero h1 .hl-line{display:inline}
+.hero h1 .accent{color:var(--gold)}
+[lang="ne"] .hero h1{font-size:clamp(1.4rem,2vw + .3rem,2.3rem);white-space:normal}
+
+.hero-sub{
+  max-width:46ch;margin-top:clamp(1.2rem,2.6vh,1.8rem);
+  font-size:clamp(.95rem,.35vw + .88rem,1.06rem);line-height:1.7;color:var(--ink-soft);
+}
+
+.hero-cta{display:flex;flex-wrap:wrap;gap:1rem;margin-top:clamp(1.5rem,3vh,2.1rem)}
+.btn-ghost-gold{border-color:var(--gold);color:var(--gold-2);background:transparent}
+.btn-ghost-gold:hover{border-color:var(--gold-2);background:var(--bg-2)}
+
+/* ---- trust-badge row ---- */
+.hero-features{
+  list-style:none;display:flex;flex-wrap:wrap;
+  gap:clamp(1.5rem,3vw,2.5rem);
+  margin-top:clamp(2.1rem,4.4vh,3.1rem);
+}
+.hero-features li{display:flex;align-items:center;gap:.85rem}
+.hf-icon{
+  width:46px;height:46px;flex:none;border-radius:50%;
+  border:1px solid var(--gold);color:var(--gold-2);
+  display:flex;align-items:center;justify-content:center;
+}
+.hf-icon svg{width:20px;height:20px}
+.hf-label{
+  font-size:.72rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+  line-height:1.45;color:var(--ink);
+}
+
+/* ---- figure: monogram + column + ring + panel text ---- */
+.hero-figure{
+  position:relative;
+  min-height:clamp(360px,42vw,540px);
+}
+
+/* faint scales-of-justice watermark, sat behind the ring like an embossed
+   letterhead mark — the "this is a law firm" cue under the monogram */
+.hf-watermark{
+  position:absolute;left:0;top:0;width:80%;height:100%;
+  padding:16%;opacity:.07;
+}
+
+.hf-ring{position:absolute;left:0;top:0;width:80%;height:100%;will-change:transform}
+.hf-tick,.hf-dot{will-change:transform}
+
+.hf-column{
+  position:absolute;left:38%;top:16%;width:80px;height:56%;
+  display:flex;justify-content:space-between;opacity:.3;
+}
+.hf-column span{width:1px;background:var(--line-2)}
+.hf-column::before{
+  content:"";position:absolute;top:-10px;left:-8px;right:-8px;height:2px;
+  background:var(--line-2);
+}
+
+.hf-monogram{position:absolute;left:0;top:0;width:80%;height:100%;cursor:pointer}
+.hf-a,.hf-l{
+  position:absolute;font-family:var(--font-display);font-weight:600;
+  line-height:.72;
+}
+.hf-a{
+  font-size:min(20vw,240px);top:6%;left:2%;
+  color:var(--bg);-webkit-text-stroke:2px var(--ink);text-stroke:2px var(--ink);
+  animation:hf-a-float 7s ease-in-out infinite;
+}
+.hf-l{
+  font-size:min(15vw,180px);bottom:8%;left:32%;
+  color:var(--gold);
+  animation:hf-l-glow 5s ease-in-out infinite;
+}
+/* brass catching light — a soft highlight band sweeps across the gold "L" */
+.hf-l::after{
+  content:"L";position:absolute;inset:0;
+  background:linear-gradient(115deg, transparent 35%, rgba(255,255,255,.9) 50%, transparent 65%);
+  background-size:320% 320%;background-position:220% 220%;
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  animation:hf-l-shimmer 5.5s ease-in-out infinite;
+  animation-delay:1.4s;
+}
+@keyframes hf-a-float{
+  0%,100%{transform:translateY(0) rotate(0deg)}
+  50%{transform:translateY(-6px) rotate(-.6deg)}
+}
+@keyframes hf-l-glow{
+  0%,100%{filter:drop-shadow(0 0 0 rgba(192,156,102,0))}
+  50%{filter:drop-shadow(0 3px 16px rgba(192,156,102,.5))}
+}
+@keyframes hf-l-shimmer{
+  0%,20%{background-position:220% 220%}
+  55%,100%{background-position:-60% -60%}
+}
+@media(prefers-reduced-motion:reduce){
+  .hf-a,.hf-l,.hf-l::after{animation:none}
+}
+
+/* stamp-impact ripple, timed to the moment the gold "L" lands */
+.hf-impact{
+  position:absolute;left:38%;bottom:10%;width:64px;height:64px;
+  margin-left:-32px;border-radius:50%;border:1px solid var(--gold);
+  opacity:0;pointer-events:none;
+}
+
+.hf-baselines{
+  position:absolute;left:2%;right:34%;bottom:2%;
+  display:flex;flex-direction:column;gap:9px;
+}
+.hf-baselines span{height:1px;background:var(--line-2)}
+.hf-baselines span:last-child{opacity:.6;margin-left:22%}
+
+.hf-text{position:absolute;right:0;top:40%;width:34%;max-width:180px}
+.hf-rule{display:block;width:36px;height:1px;background:var(--gold);margin-bottom:.9rem}
+.hf-words{
+  font-family:var(--font-display);font-weight:500;
+  font-size:clamp(1rem,1vw + .7rem,1.2rem);line-height:1.5;
+  color:var(--ink);text-transform:uppercase;letter-spacing:.03em;
+}
+.hf-word{display:block}
+.hf-brand{
+  margin-top:1.1rem;font-size:.76rem;font-weight:600;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--gold-2);
+}
+
+/* ---- responsive ---- */
+@media(max-width:980px){
+  .hero{padding:2.25rem 0 2.75rem}
+  .hero-grid{grid-template-columns:1fr;gap:2.5rem}
+  .hero-figure{
+    min-height:0;height:clamp(280px,72vw,380px);
+    width:min(100%,380px);margin-inline:auto;
+  }
+  .hf-text{top:auto;bottom:6%}
+}
+
+@media(max-width:600px){
+  .hero-features{gap:1.5rem}
+  .hf-column{display:none}
+  .hf-text{width:auto;right:4%}
+  .hero h1{white-space:normal}
+}

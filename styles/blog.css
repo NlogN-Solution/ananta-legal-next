@@ -1,0 +1,86 @@
+/* ============ BLOG PAGE ============ */
+/* Tighten the gap after the header — the base `section` rule gives every
+   section a large clamp(5.5rem,11vw,10rem) top padding meant for full hero
+   panels, which left a huge empty gap under "Write a post" before any cards
+   were visible. */
+.blog-grid-section{padding-top:clamp(1rem,2.5vw,1.75rem)}
+.blog-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:clamp(1.3rem,2.5vw,2rem);margin-top:clamp(1.5rem,3vw,2.5rem)}
+.blog-card{
+  background:var(--surface);border:1px solid var(--line);border-radius:16px;
+  overflow:hidden;transition:border-color .35s ease,box-shadow .35s ease;
+  display:flex;flex-direction:column;
+}
+.blog-card:hover{border-color:var(--olive);box-shadow:0 18px 40px -28px rgba(0,0,0,.45)}
+.blog-card .blog-thumb{
+  height:160px;background:var(--bg-2);overflow:hidden;
+  position:relative;
+}
+.blog-card .blog-thumb img{width:100%;height:100%;object-fit:cover;transition:transform .6s cubic-bezier(.16,1,.3,1)}
+.blog-card:hover .blog-thumb img{transform:scale(1.03)}
+.blog-card .blog-thumb .blog-cat{
+  position:absolute;top:1rem;left:1rem;
+  font-family:"IBM Plex Mono",monospace;font-size:.68rem;text-transform:uppercase;
+  letter-spacing:.1em;color:var(--bg);background:var(--olive);
+  padding:.28rem .7rem;border-radius:4px;font-weight:600;
+}
+.blog-card .blog-body{padding:1.2rem 1.4rem 1.4rem;flex:1;display:flex;flex-direction:column}
+.blog-card .blog-meta{font-size:.8rem;color:var(--ink-soft);margin-bottom:.5rem;display:flex;align-items:center;gap:.8rem}
+.blog-card .blog-meta .blog-dot{width:4px;height:4px;border-radius:50%;background:var(--line-2)}
+.blog-card h3{
+  font-family:var(--font-display);font-weight:700;font-size:1.15rem;letter-spacing:-.01em;line-height:1.2;margin-bottom:.5rem;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+}
+.blog-card h3 a{transition:color .2s}
+.blog-card:hover h3 a{color:var(--olive)}
+.blog-card .blog-excerpt{
+  color:var(--ink-soft);font-size:.9rem;line-height:1.5;flex:1;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+}
+.blog-card .blog-read{
+  display:inline-flex;align-items:center;gap:.4rem;
+  margin-top:1rem;font-size:.88rem;font-weight:600;color:var(--olive);transition:gap .2s;
+}
+.blog-card:hover .blog-read{gap:.7rem}
+
+/* blog post */
+/* `.wrap` sets an explicit width (min(1200px,92vw)) that a plain max-width
+   on an ancestor can't shrink — override it directly for the post's own
+   title + body wrappers so the reading column is actually ~740px wide. */
+.blog-post-title .wrap,
+.blog-post .wrap{
+  width:min(740px,92vw);
+}
+.page-header.blog-post-title{padding-bottom:clamp(1.5rem,3vw,2.25rem)}
+.blog-post{margin:0 auto;padding-top:clamp(1rem,2.5vw,1.75rem)}
+.blog-post-header{margin-bottom:1.5rem}
+.blog-post-header .blog-cat-tag{
+  font-family:"IBM Plex Mono",monospace;font-size:.68rem;text-transform:uppercase;
+  letter-spacing:.1em;color:var(--bg);background:var(--olive);
+  padding:.3rem .8rem;border-radius:4px;font-weight:600;display:inline-block;margin-bottom:1rem;
+}
+.blog-post-header h1{font-family:var(--font-display);font-weight:700;font-size:clamp(2rem,4.5vw,3rem);letter-spacing:-.03em;line-height:1.08;margin-bottom:1rem}
+.blog-post-header .blog-post-meta{font-size:.9rem;color:var(--ink-soft);display:flex;align-items:center;gap:.8rem;flex-wrap:wrap}
+/* Force the site's own colors/fonts regardless of inline styles pasted into
+   the editor from Word/Google Docs — the toolbar has no color/font picker,
+   so any inline color here came from paste, and can otherwise leave text
+   unreadable (e.g. literal black text in dark mode). */
+.blog-post-body{color:var(--ink-soft)}
+.blog-post-body *{color:inherit !important;background-color:transparent !important;font-family:inherit !important}
+.blog-post-body h2{font-family:var(--font-display) !important;font-weight:700;font-size:1.7rem;letter-spacing:-.02em;margin:2.5rem 0 1rem;line-height:1.1;color:var(--ink) !important}
+.blog-post-body h3{font-family:var(--font-display) !important;font-weight:700;font-size:1.3rem;margin:2rem 0 .8rem;color:var(--ink) !important}
+.blog-post-body p{font-size:1.08rem;line-height:1.75;margin-bottom:1.2rem}
+.blog-post-body ul,.blog-post-body ol{margin:1rem 0 1.5rem 1.5rem}
+.blog-post-body li{font-size:1.05rem;line-height:1.7;margin-bottom:.5rem}
+.blog-post-body strong,.blog-post-body b{color:var(--ink) !important}
+.blog-post-body blockquote{
+  border-left:3px solid var(--olive);padding:1rem 1.5rem;margin:1.5rem 0;
+  background:var(--surface) !important;border-radius:0 12px 12px 0;
+}
+.blog-post-body blockquote p{color:var(--ink) !important;font-style:italic}
+/* images & links inside editor-authored (database) posts */
+.blog-post-body img{max-width:100%;height:auto;border-radius:12px;margin:1.5rem 0;border:1px solid var(--line)}
+.blog-post-body a{color:var(--olive) !important;text-decoration:underline;text-underline-offset:2px}
+.blog-post-body table{border-collapse:collapse;width:100%;margin:1.5rem 0}
+.blog-post-body th,.blog-post-body td{border:1px solid var(--line);padding:.6rem .8rem;text-align:left}
+.blog-post-cover{width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:16px;border:1px solid var(--line);margin-bottom:1.25rem;display:block}
+.blog-empty{text-align:center;color:var(--ink-soft);padding:3rem 0;font-size:1.1rem}
