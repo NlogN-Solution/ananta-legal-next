@@ -84,3 +84,68 @@
 .blog-post-body th,.blog-post-body td{border:1px solid var(--line);padding:.6rem .8rem;text-align:left}
 .blog-post-cover{width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:16px;border:1px solid var(--line);margin-bottom:1.25rem;display:block}
 .blog-empty{text-align:center;color:var(--ink-soft);padding:3rem 0;font-size:1.1rem}
+
+/* ---- draft marker (admin only) ---- */
+.blog-draft-tag {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.64rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 600;
+  color: var(--bg);
+  background: var(--gold-2);
+  padding: 0.16rem 0.5rem;
+  border-radius: 4px;
+}
+
+/* ============ CANVA DOCUMENT (page images below the article) ============ */
+.canva-doc {
+  margin-top: clamp(2.5rem, 6vw, 4rem);
+  padding-top: clamp(1.8rem, 4vw, 2.5rem);
+  border-top: 1px solid var(--line);
+}
+.canva-doc__head h2 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.45rem;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  margin-bottom: 0.4rem;
+}
+.canva-doc__head p {
+  font-size: 0.92rem;
+  color: var(--ink-soft);
+  line-height: 1.6;
+  margin-bottom: 1.6rem;
+}
+.canva-doc__pages {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: clamp(1rem, 2.5vw, 1.6rem);
+  counter-reset: canva-page;
+}
+.canva-doc__pages li { position: relative; }
+.canva-doc__pages img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.canva-doc__download {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1.6rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--olive);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.canva-doc__download .arr { transition: transform 0.25s; }
+.canva-doc__download:hover .arr { transform: translate(3px, -3px); }

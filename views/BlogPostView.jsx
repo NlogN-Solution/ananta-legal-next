@@ -1,12 +1,12 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { useParams, Link } from '@/lib/router';
+import React from 'react';
+import { Link } from '@/lib/router';
 import CTA from '../components/CTA';
 import DeckLayout from '../components/DeckLayout';
+import CanvaDocument from '../components/CanvaDocument';
 import useAuth from '../hooks/useAuth';
 import { useLang } from '../i18n/LanguageContext';
-import { apiUrl } from '../lib/api';
 
 function fmtDate(iso) {
   try {
@@ -18,63 +18,41 @@ function fmtDate(iso) {
   }
 }
 
-export default function BlogPostPage() {
-  const { slug } = useParams();
+/**
+ * Public article body. The post now arrives as a prop from the server
+ * component that renders this page, so the article HTML is present in the
+ * server response for search engines instead of being fetched after hydration.
+ *
+ * `preview` renders the same markup for the admin's pre-publish preview, so
+ * what they approve is what visitors get.
+ */
+export default function BlogPostView({ post, documentPages = [], preview = false }) {
   const { t } = useLang();
   const bp = t.blogPost;
   const authenticated = useAuth();
 
-  const [post, setPost] = useState(undefined); // undefined = loading, null = not found
-
-  useEffect(() => {
-    let active = true;
-    fetch(apiUrl(`/api/posts/${slug}`))
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => active && setPost(d || null))
-      .catch(() => active && setPost(null));
-    return () => {
-      active = false;
-    };
-  }, [slug]);
-
-  if (post === undefined) {
-    const Loading = (
-      <section className="page-header">
-        <div className="wrap"><p className="sub">Loading…</p></div>
-      </section>
-    );
-    return <DeckLayout pages={[{ id: 'bp-loading', label: '…', node: Loading }]} />;
-  }
-
-  if (!post) {
-    const NotFound = (
-      <section className="page-header">
-        <div className="wrap">
-          <h1>{bp.notFound}</h1>
-          <p className="sub">
-            <Link to="/blog" style={{ color: 'var(--olive)' }}>{bp.back}</Link>
-          </p>
-        </div>
-      </section>
-    );
-    return <DeckLayout pages={[{ id: 'bp-404', label: bp.notFound, node: NotFound }]} />;
-  }
+  const isCanva = post.content_type === 'canva_pdf';
 
   const Title = (
     <section className="page-header blog-post-title">
       <div className="wrap">
         <div className="sec-label mono">
-          
           <Link to="/blog" style={{ color: 'var(--olive)' }}>{bp.breadcrumb}</Link> / {bp.crumbTail}
         </div>
         <header className="blog-post-header">
           <span className="blog-cat-tag">{post.category}</span>
           <h1>{post.title}</h1>
           <div className="blog-post-meta">
-            <span>{bp.publishedOn} {fmtDate(post.created_at)}</span>
+            <span>{bp.publishedOn} {fmtDate(post.published_at || post.created_at)}</span>
             <span>•</span>
             <span>{post.read_time}</span>
-            {authenticated && (
+            {post.published === false && (
+              <>
+                <span>•</span>
+                <span className="blog-draft-tag">Draft</span>
+              </>
+            )}
+            {authenticated && !preview && (
               <>
                 <span>•</span>
                 <Link to={`/blog/edit/${post.slug}`} style={{ color: 'var(--olive)' }}>Edit</Link>
@@ -94,8 +72,16 @@ export default function BlogPostPage() {
         )}
         <article
           className="blog-post-body"
-          dangerouslySetInnerHTML={{ __html: post.content }}
+          dangerouslySetInnerHTML={{ __html: post.content || '' }}
         />
+        {isCanva && (
+          <CanvaDocument
+            pages={documentPages}
+            fileUrl={post.document_url}
+            title={post.title}
+            pageCount={post.document_page_count}
+          />
+        )}
       </div>
     </section>
   );

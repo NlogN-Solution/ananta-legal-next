@@ -1,12 +1,11 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Link } from '@/lib/router';
 import CTA from '../components/CTA';
 import DeckLayout from '../components/DeckLayout';
 import useAuth from '../hooks/useAuth';
 import { useLang } from '../i18n/LanguageContext';
-import { apiUrl } from '../lib/api';
 
 function fmtDate(iso) {
   try {
@@ -47,9 +46,10 @@ function PostCard({ post }) {
       </div>
       <div className="blog-body">
         <div className="blog-meta">
-          <span>{fmtDate(post.created_at)}</span>
+          <span>{fmtDate(post.published_at || post.created_at)}</span>
           <span className="blog-dot"></span>
           <span>{post.read_time}</span>
+          {post.published === false && <span className="blog-draft-tag">Draft</span>}
         </div>
         <h3>
           <Link to={`/blog/${post.slug}`}>{post.title}</Link>
@@ -63,22 +63,14 @@ function PostCard({ post }) {
   );
 }
 
-export default function BlogPage() {
+/**
+ * Blog index. Posts are supplied by the server component that renders this,
+ * so the cards (and the links search engines follow) are in the initial HTML.
+ */
+export default function BlogListView({ posts = [] }) {
   const { t } = useLang();
   const b = t.blog;
   const authenticated = useAuth();
-  const [posts, setPosts] = useState(null); // null = loading
-
-  useEffect(() => {
-    let active = true;
-    fetch(apiUrl('/api/posts'))
-      .then((r) => (r.ok ? r.json() : []))
-      .then((data) => active && setPosts(Array.isArray(data) ? data : []))
-      .catch(() => active && setPosts([]));
-    return () => {
-      active = false;
-    };
-  }, []);
 
   const Intro = (
     <section className="page-header">
@@ -98,9 +90,7 @@ export default function BlogPage() {
   const Grid = (
     <section className="blog-grid-section">
       <div className="wrap">
-        {posts === null ? (
-          <p className="blog-empty">Loading posts…</p>
-        ) : posts.length === 0 ? (
+        {posts.length === 0 ? (
           <div className="blog-empty">
             <p>No posts published yet.</p>
             {authenticated && (

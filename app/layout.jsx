@@ -1,5 +1,6 @@
 import Script from 'next/script';
 import Providers from './providers';
+import { SITE_URL } from '@/lib/site';
 
 // Global stylesheets — same files, same order as the old src/main.jsx.
 import '@/styles/tokens.css';
@@ -25,6 +26,8 @@ import '@/styles/blog-editor.css';
 import '@/styles/responsive.css';
 
 export const metadata = {
+  // Resolves relative Open Graph / Twitter image paths to absolute URLs.
+  metadataBase: new URL(SITE_URL),
   title: 'Ananta Legal — Startup & Business Law, Kathmandu',
   description:
     'Plain-English legal for founders. Company formation, contracts, fundraising, IP and compliance — handled at startup speed, from Kathmandu, Nepal.',

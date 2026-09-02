@@ -43,6 +43,36 @@ async function runEnsureSchema() {
       updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `);
+
+  /* Canva-PDF posts. Purely additive: every existing row keeps its content and
+     picks up content_type = 'legacy_html', so posts written with the old
+     rich-text editor keep rendering exactly as they always have. `content`
+     stays the rendered article HTML for BOTH kinds — for legacy posts it is
+     the editor's own output (never rewritten), for Canva posts it is
+     regenerated server-side from structured_content on every save. */
+  await pool.query(`
+    ALTER TABLE posts
+      ADD COLUMN IF NOT EXISTS content_type        TEXT NOT NULL DEFAULT 'legacy_html',
+      ADD COLUMN IF NOT EXISTS document_url        TEXT,
+      ADD COLUMN IF NOT EXISTS document_public_id  TEXT,
+      ADD COLUMN IF NOT EXISTS document_filename   TEXT,
+      ADD COLUMN IF NOT EXISTS document_size       INTEGER,
+      ADD COLUMN IF NOT EXISTS document_mime_type  TEXT,
+      ADD COLUMN IF NOT EXISTS document_page_count INTEGER,
+      ADD COLUMN IF NOT EXISTS extracted_text      TEXT,
+      ADD COLUMN IF NOT EXISTS structured_content  JSONB,
+      ADD COLUMN IF NOT EXISTS seo_title           TEXT,
+      ADD COLUMN IF NOT EXISTS seo_description     TEXT,
+      ADD COLUMN IF NOT EXISTS processing_status   TEXT,
+      ADD COLUMN IF NOT EXISTS processing_error    TEXT,
+      ADD COLUMN IF NOT EXISTS published_at        TIMESTAMPTZ;
+  `);
+
+  // Backfill published_at once for rows that predate the column.
+  await pool.query(
+    `UPDATE posts SET published_at = created_at WHERE published = TRUE AND published_at IS NULL`
+  );
+
   console.log('[db] schema ready');
 }
 

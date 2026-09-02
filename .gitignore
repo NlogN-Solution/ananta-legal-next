@@ -12,9 +12,6 @@
 .env
 .env*.local
 
-# self-hosted TinyMCE (copied from node_modules by postinstall)
-/public/tinymce
-
 # dev-only local image uploads (production uses Cloudinary)
 /public/uploads
 

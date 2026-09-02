@@ -17,9 +17,11 @@ import { LayoutRouterContext } from 'next/dist/shared/lib/app-router-context.sha
  */
 function FrozenRouter({ children }) {
   const context = useContext(LayoutRouterContext ?? {});
-  const frozen = useRef(context).current;
+  const frozenRef = useRef(null);
+  if (frozenRef.current === null) frozenRef.current = context;
+  const frozen = frozenRef.current;
 
-  if (!frozen) return children;
+  if (!frozen || !LayoutRouterContext) return children;
   return (
     <LayoutRouterContext.Provider value={frozen}>
       {children}
