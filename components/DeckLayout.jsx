@@ -7,6 +7,18 @@ import { useLang } from '../i18n/LanguageContext';
 import { fadeUp, staggerContainer } from '../animation/variants';
 
 /**
+ * Reveal trigger for each panel.
+ *
+ * `amount` is a fraction of the *element*, so a percentage threshold silently
+ * breaks on anything taller than the viewport divided by that fraction: a blog
+ * post carrying a 17-page document is ~17,000px tall, and 18% of it is five
+ * screens' worth — an intersection that can never happen, leaving the panel
+ * stuck at opacity 0 forever. Triggering on "any part visible" and pulling the
+ * bottom edge in with a margin keeps the same staged feel at every height.
+ */
+const REVEAL_VIEWPORT = { once: true, amount: 'some', margin: '0px 0px -80px 0px' };
+
+/**
  * DeckLayout — shared responsive vertical page stack with smooth scroll
  * triggered animations for every route.
  *
@@ -41,7 +53,7 @@ export default function DeckLayout({ pages, footer = true, reveal = true }) {
           variants={animate ? fadeUp : undefined}
           initial={animate ? 'hidden' : false}
           whileInView={animate ? 'show' : undefined}
-          viewport={animate ? { once: true, amount: 0.18 } : undefined}
+          viewport={animate ? REVEAL_VIEWPORT : undefined}
         >
           {page.node}
         </motion.div>
