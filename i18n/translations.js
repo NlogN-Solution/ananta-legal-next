@@ -203,6 +203,8 @@ export const translations = {
       hours: 'Mon–Fri · 10:00–18:00',
       copyright: '© 2026 The Entrepreneur\'s Lawyers. All rights reserved.',
       disclaimer: "This site is for general information and isn't legal advice. Reaching out doesn't create a lawyer–client relationship until we both agree to it in writing.",
+      // Brand name stays untranslated; the phrase around it is ordered per language.
+      poweredBy: 'Powered by NLOGN Labs',
     },
 
     about: {
@@ -658,6 +660,7 @@ export const translations = {
       hours: 'सोम–शुक्र · १०:००–१८:००',
       copyright: '© २०२६ उद्यमीहरूको वकिल। सर्वाधिकार सुरक्षित।',
       disclaimer: 'यो साइट सामान्य जानकारीका लागि हो र कानुनी सल्लाह होइन। हामी दुवैले लिखित रूपमा सहमत नभएसम्म सम्पर्क गर्दैमा वकिल–ग्राहक सम्बन्ध सिर्जना हुँदैन।',
+      poweredBy: 'NLOGN Labs द्वारा संचालित',
     },
 
     about: {

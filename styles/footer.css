@@ -9,3 +9,18 @@ footer{background:var(--bg-2);color:var(--ink);padding:clamp(4.5rem,8vw,6.5rem) 
 .foot-col a:hover{opacity:1;color:var(--olive)}
 .foot-bottom{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1rem;padding-top:2rem;font-size:.82rem;color:var(--ink-soft)}
 .foot-bottom .disc{max-width:62ch;line-height:1.5}
+
+/* Build credit — deliberately quiet: a small line under the legal row that
+   brightens on hover, so it reads as a signature rather than an ad. */
+.foot-credit{
+  padding-top:1.1rem;margin-top:1.1rem;
+  border-top:1px solid var(--line);
+  font-size:.76rem;letter-spacing:.02em;
+  text-align:center;
+}
+.foot-credit a{
+  color:var(--ink-soft);opacity:.75;
+  text-decoration:none;transition:opacity .2s,color .2s;
+}
+.foot-credit a:hover,
+.foot-credit a:focus-visible{opacity:1;color:var(--olive);text-decoration:underline;text-underline-offset:3px}

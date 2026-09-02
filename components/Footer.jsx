@@ -40,6 +40,11 @@ export default function Footer() {
           <span>{f.copyright}</span>
           <span className="disc">{f.disclaimer}</span>
         </div>
+        <div className="foot-credit">
+          <a href="https://nlogn.online" target="_blank" rel="noopener noreferrer">
+            {f.poweredBy}
+          </a>
+        </div>
       </div>
     </footer>
   );
