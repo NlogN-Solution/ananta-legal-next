@@ -38,6 +38,30 @@ const STEPS = [
 ];
 const STEP_ORDER = STEPS.map(([key]) => key);
 
+/* An in-progress new post is kept in sessionStorage so that closing the tab or
+   navigating away doesn't throw away a PDF that took real time to upload and
+   extract. Only the "create" flow is cached — restoring a stale draft over a
+   post that already exists in the database would be worse than losing it. */
+const DRAFT_KEY = 'ananta:new-post-draft';
+
+function readDraft() {
+  try {
+    const raw = sessionStorage.getItem(DRAFT_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeDraft(value) {
+  try {
+    if (value) sessionStorage.setItem(DRAFT_KEY, JSON.stringify(value));
+    else sessionStorage.removeItem(DRAFT_KEY);
+  } catch {
+    /* private mode or quota — the editor still works, just without recovery */
+  }
+}
+
 /* --------------------------------------------------------------- login ---- */
 function LoginGate({ onAuthed }) {
   const [username, setUsername] = useState('');
@@ -194,6 +218,7 @@ export default function BlogEditorPage() {
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState('');
   const [previewing, setPreviewing] = useState(false);
+  const editorScroll = useRef(0);
 
   const [post, setPost] = useState({
     id: null,
@@ -278,6 +303,57 @@ export default function BlogEditorPage() {
   }, [slug, authed]);
 
   const set = (k, v) => setPost((p) => ({ ...p, [k]: v }));
+
+  /* --- preview -----------------------------------------------------------
+     Preview swaps the whole screen for the rendered post, so it also takes
+     over the browser's Back button: without this, Back would leave the editor
+     entirely and throw away an upload that took real time to process. */
+  const openPreview = useCallback(() => {
+    editorScroll.current = window.scrollY;
+    setPreviewing(true);
+    // Top of the article, not wherever the form happened to be scrolled to.
+    window.scrollTo(0, 0);
+    try {
+      window.history.pushState({ anantaPreview: true }, '', window.location.href);
+    } catch {
+      /* history is unavailable — the on-screen button still exits */
+    }
+  }, []);
+
+  const closePreview = useCallback(() => {
+    setPreviewing(false);
+    if (window.history.state?.anantaPreview) {
+      window.history.back(); // consume the entry we pushed
+    }
+    // Put the admin back where they were in the form.
+    requestAnimationFrame(() => window.scrollTo(0, editorScroll.current));
+  }, []);
+
+  useEffect(() => {
+    const onPopState = () => setPreviewing(false);
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
+  /* --- crash/navigation recovery for the create flow --------------------- */
+  const restored = useRef(false);
+  useEffect(() => {
+    if (slug || restored.current) return;
+    restored.current = true;
+    const saved = readDraft();
+    if (!saved) return;
+    if (saved.post) setPost((p) => ({ ...p, ...saved.post }));
+    if (saved.doc) {
+      setDoc(saved.doc);
+      setDocStatus('ready');
+    }
+  }, [slug]);
+
+  useEffect(() => {
+    if (slug || !restored.current) return;
+    const hasWork = post.title.trim() || post.excerpt.trim() || doc;
+    writeDraft(hasWork ? { post, doc } : null);
+  }, [slug, post, doc]);
 
   const logout = async () => {
     await api('/api/logout', { method: 'POST' });
@@ -419,6 +495,7 @@ export default function BlogEditorPage() {
       });
       const data = await r.json();
       if (!r.ok) throw new Error(data.error || 'Save failed.');
+      writeDraft(null); // the post now lives in the database
       navigate(publish ? `/blog/${data.slug}` : `/blog/edit/${data.slug}`);
     } catch (e) {
       setError(e.message || 'Save failed.');
@@ -479,12 +556,14 @@ export default function BlogEditorPage() {
     return (
       <>
         <div className="editor-previewbar">
-          <span>Preview — this is how the post will look.</span>
-          <button type="button" className="btn btn-ghost" onClick={() => setPreviewing(false)}>
+          <span>Preview — this is how the post will look. Nothing has been saved yet.</span>
+          <button type="button" className="btn btn-primary" onClick={closePreview}>
             ← Back to editing
           </button>
         </div>
-        <BlogPostView post={draft} documentPages={doc?.pageImages || []} preview />
+        <div className="editor-previewbody">
+          <BlogPostView post={draft} documentPages={doc?.pageImages || []} preview />
+        </div>
       </>
     );
   }
@@ -617,7 +696,7 @@ export default function BlogEditorPage() {
           <button
             type="button"
             className="btn btn-ghost"
-            onClick={() => setPreviewing(true)}
+            onClick={openPreview}
             disabled={saving || deleting}
           >
             Preview

@@ -84,10 +84,56 @@ export function pdfPageUrl(publicId, page, width = 1200) {
   });
 }
 
-/** Original PDF, for the "open the document" link. */
+/** Public delivery URL for the original PDF ("open the document" link). */
 export function pdfRawUrl(publicId) {
   if (!publicId) return null;
   return cloudinary.url(publicId, { resource_type: 'image', format: 'pdf', secure: true });
+}
+
+/**
+ * Signed, authenticated download URL for the stored PDF — used server-side to
+ * read the file back for text extraction.
+ *
+ * Many Cloudinary accounts block *public* PDF delivery by default (the CDN
+ * answers 401), which would otherwise break extraction entirely. This URL is
+ * signed with the API secret and is not subject to that restriction, so the
+ * workflow succeeds whether or not the account setting is enabled.
+ *
+ * It carries a signature — never store it or send it to the browser.
+ */
+export function pdfDownloadUrl(publicId) {
+  if (!publicId || !useCloudinary) return null;
+  try {
+    return cloudinary.utils.private_download_url(publicId, 'pdf', {
+      resource_type: 'image',
+      type: 'upload',
+      expires_at: Math.round(Date.now() / 1000) + 300, // only needed for this request
+    });
+  } catch (e) {
+    console.error('[cloudinary:download-url]', e.message);
+    return null;
+  }
+}
+
+/**
+ * Is the PDF readable over plain public delivery? Decides whether the public
+ * page may offer an "open the original PDF" link — on a restricted account
+ * that link would 401 for every visitor, so we omit it instead.
+ */
+export async function isPubliclyDeliverable(url) {
+  if (!url) return false;
+  // A freshly uploaded asset can 401 for a moment before it propagates to the
+  // CDN, so a single failure isn't proof that delivery is blocked.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    if (attempt) await new Promise((r) => setTimeout(r, 700));
+    try {
+      const res = await fetch(url, { method: 'GET', headers: { Range: 'bytes=0-0' } });
+      if (res.ok) return true;
+    } catch {
+      /* retry once, then give up */
+    }
+  }
+  return false;
 }
 
 /** Remove a stored asset (used when an admin replaces or deletes a document). */

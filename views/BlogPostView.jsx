@@ -92,5 +92,7 @@ export default function BlogPostView({ post, documentPages = [], preview = false
     { id: 'bp-cta', label: t.deck.labels.contact, node: <CTA /> },
   ];
 
-  return <DeckLayout pages={PAGES} />;
+  // In the admin preview the stack is mounted mid-page, so the scroll-triggered
+  // reveal would leave every panel invisible — show them straight away instead.
+  return <DeckLayout pages={PAGES} reveal={!preview} />;
 }

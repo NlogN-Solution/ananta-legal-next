@@ -1,5 +1,11 @@
 import { requireAdmin } from '@/server-lib/session';
-import { isOwnDocument, pdfRawUrl, pdfPageUrl } from '@/server-lib/cloudinary';
+import {
+  isOwnDocument,
+  pdfRawUrl,
+  pdfPageUrl,
+  pdfDownloadUrl,
+  isPubliclyDeliverable,
+} from '@/server-lib/cloudinary';
 import { extractPdf } from '@/server-lib/pdf/extract';
 import { blocksToHtml, firstParagraph } from '@/server-lib/pdf/blocks-to-html';
 import { assertValidPdf, PdfError } from '@/server-lib/pdf/validate';
@@ -28,17 +34,28 @@ export async function POST(request) {
     return Response.json({ error: 'Unknown document reference.' }, { status: 400 });
   }
 
-  const source = pdfRawUrl(publicId) || secureUrl;
+  // Prefer the signed download URL: plain PDF delivery is blocked by default on
+  // many Cloudinary accounts, and that restriction doesn't apply to signed
+  // requests. Fall back to public delivery for accounts where it is allowed.
+  const publicUrl = pdfRawUrl(publicId) || secureUrl;
+  const sources = [pdfDownloadUrl(publicId), publicUrl, secureUrl].filter(Boolean);
 
   try {
-    const response = await fetch(source);
-    if (!response.ok) {
-      // A 401 here almost always means the account still blocks PDF delivery.
-      console.error('[documents:process] fetch', response.status, source);
+    let response = null;
+    for (const url of sources) {
+      const attempt = await fetch(url).catch(() => null);
+      if (attempt?.ok) {
+        response = attempt;
+        break;
+      }
+      console.error('[documents:process] fetch', attempt?.status ?? 'network error', url);
+    }
+
+    if (!response) {
       return Response.json(
         {
           error:
-            'The uploaded document could not be read back from storage. If this keeps happening, enable “Allow delivery of PDF and ZIP files” in your Cloudinary security settings.',
+            'The uploaded document could not be read back from storage. Check that CLOUDINARY_URL is correct and that the upload completed.',
         },
         { status: 502 }
       );
@@ -59,9 +76,13 @@ export async function POST(request) {
       );
     }
 
+    // Only advertise the original PDF publicly when the CDN will actually
+    // serve it; otherwise every visitor's "open the PDF" click would 401.
+    const canLinkPdf = await isPubliclyDeliverable(publicUrl);
+
     return Response.json({
       publicId,
-      documentUrl: source,
+      documentUrl: canLinkPdf ? publicUrl : null,
       filename: filename || null,
       size: Number(bytes) || buffer.length,
       mimeType: 'application/pdf',
