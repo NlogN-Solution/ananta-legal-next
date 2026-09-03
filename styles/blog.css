@@ -1,9 +1,11 @@
 /* ============ BLOG PAGE ============ */
-/* Tighten the gap after the header — the base `section` rule gives every
-   section a large clamp(5.5rem,11vw,10rem) top padding meant for full hero
-   panels, which left a huge empty gap under "Write a post" before any cards
-   were visible. */
-.blog-grid-section{padding-top:clamp(1rem,2.5vw,1.75rem)}
+/* Tighten the gap around the cards — the base `section` rule gives every
+   section a large clamp(5.5rem,11vw,10rem) padding meant for full hero
+   panels. On top that left a huge empty gap under "Write a post" before any
+   cards were visible; on the bottom it stacked with the CTA's own top padding
+   into ~270px of dead space between the last card and "Let's make it legal",
+   which the CTA's contrasting background turned into a visible empty band. */
+.blog-grid-section{padding-top:clamp(1rem,2.5vw,1.75rem);padding-bottom:clamp(2rem,4vw,3rem)}
 .blog-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:clamp(1.3rem,2.5vw,2rem);margin-top:clamp(1.5rem,3vw,2.5rem)}
 .blog-card{
   background:var(--surface);border:1px solid var(--line);border-radius:16px;

@@ -28,9 +28,9 @@ import '@/styles/responsive.css';
 export const metadata = {
   // Resolves relative Open Graph / Twitter image paths to absolute URLs.
   metadataBase: new URL(SITE_URL),
-  title: 'Ananta Legal — Startup & Business Law, Kathmandu',
+  title: 'Ananta Legal — Corporate Law Firm , Kathmandu',
   description:
-    'Plain-English legal for founders. Company formation, contracts, fundraising, IP and compliance — handled at startup speed, from Kathmandu, Nepal.',
+    'Company formation, contracts, fundraising, IP and compliance — handled at startup speed, from Kathmandu, Nepal.',
   icons: { icon: [{ url: '/logo.png', type: 'image/png' }] },
 };
 
@@ -57,14 +57,14 @@ export default function RootLayout({ children }) {
 
         {/* Google tag (gtag.js) */}
         <Script
-          src="https://www.googletagmanager.com/gtag/js?id=G-CCNZ71KWVM"
+          src="https://www.googletagmanager.com/gtag/js?id=G-1LDJCTZHDE"
           strategy="afterInteractive"
         />
         <Script id="gtag-init" strategy="afterInteractive">
           {`window.dataLayer = window.dataLayer || [];
 function gtag(){dataLayer.push(arguments);}
 gtag('js', new Date());
-gtag('config', 'G-CCNZ71KWVM');`}
+gtag('config', 'G-1LDJCTZHDE');`}
         </Script>
       </head>
       <body>
