@@ -84,7 +84,39 @@ export function pdfPageUrl(publicId, page, width = 1200) {
   });
 }
 
-/** Public delivery URL for the original PDF ("open the document" link). */
+/**
+ * Maximum number of pages ever rasterised for one post. A guard, not a design
+ * limit — it stops a pathological upload from generating hundreds of requests.
+ */
+export const MAX_DOCUMENT_PAGES = 60;
+
+/* Widths requested from the CDN. The document column is at most 860 CSS px, so
+   the largest covers a 2x display without asking for more pixels than that. */
+const PAGE_WIDTHS = [740, 1100, 1500, 2000];
+
+/**
+ * The responsive page images that make up a post's visual layer, in order.
+ *
+ * The public page and the admin preview both build their document from this,
+ * so what an admin approves is exactly what a visitor gets.
+ */
+export function pdfPageImages(publicId, pageCount) {
+  if (!publicId) return [];
+  const count = Math.min(Number(pageCount) || 0, MAX_DOCUMENT_PAGES);
+  return Array.from({ length: count }, (_, i) => {
+    const page = i + 1;
+    return {
+      page,
+      src: pdfPageUrl(publicId, page, 1500),
+      srcSet: PAGE_WIDTHS.map((w) => `${pdfPageUrl(publicId, page, w)} ${w}w`).join(', '),
+    };
+  });
+}
+
+/**
+ * Public delivery URL for the stored PDF. Kept as the record of where the
+ * source document lives; the public page never links to it.
+ */
 export function pdfRawUrl(publicId) {
   if (!publicId) return null;
   return cloudinary.url(publicId, { resource_type: 'image', format: 'pdf', secure: true });
@@ -113,27 +145,6 @@ export function pdfDownloadUrl(publicId) {
     console.error('[cloudinary:download-url]', e.message);
     return null;
   }
-}
-
-/**
- * Is the PDF readable over plain public delivery? Decides whether the public
- * page may offer an "open the original PDF" link — on a restricted account
- * that link would 401 for every visitor, so we omit it instead.
- */
-export async function isPubliclyDeliverable(url) {
-  if (!url) return false;
-  // A freshly uploaded asset can 401 for a moment before it propagates to the
-  // CDN, so a single failure isn't proof that delivery is blocked.
-  for (let attempt = 0; attempt < 2; attempt++) {
-    if (attempt) await new Promise((r) => setTimeout(r, 700));
-    try {
-      const res = await fetch(url, { method: 'GET', headers: { Range: 'bytes=0-0' } });
-      if (res.ok) return true;
-    } catch {
-      /* retry once, then give up */
-    }
-  }
-  return false;
 }
 
 /** Remove a stored asset (used when an admin replaces or deletes a document). */

@@ -73,7 +73,7 @@ export async function POST(request) {
       html: blocksToHtml(blocks),
       excerptSuggestion: firstParagraph(blocks),
       // Without Cloudinary there is nothing to rasterise the pages, so the
-      // public page falls back to the "open the PDF" link alone.
+      // post falls back to rendering its extracted text as the visible article.
       pageImages: [],
     });
   } catch (e) {

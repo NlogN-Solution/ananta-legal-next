@@ -1,4 +1,4 @@
-import { pool, ensureSchema } from './db';
+import { pool, ensureSchema, describeError } from './db';
 
 /**
  * Direct database reads for the public blog pages.
@@ -28,7 +28,7 @@ export async function listPosts({ includeDrafts = false } = {}) {
     );
     return rows;
   } catch (e) {
-    console.error('[posts-repo:list]', e.message);
+    console.error('[posts-repo:list]', describeError(e));
     return [];
   }
 }
@@ -43,7 +43,7 @@ export async function getPostBySlug(slug, { includeDrafts = false } = {}) {
     );
     return rows[0] || null;
   } catch (e) {
-    console.error('[posts-repo:get]', e.message);
+    console.error('[posts-repo:get]', describeError(e));
     return null;
   }
 }
@@ -59,7 +59,7 @@ export async function getPublishedSlugs() {
     );
     return rows;
   } catch (e) {
-    console.error('[posts-repo:slugs]', e.message);
+    console.error('[posts-repo:slugs]', describeError(e));
     return [];
   }
 }

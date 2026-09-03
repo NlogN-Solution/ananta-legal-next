@@ -1,3 +1,4 @@
+import net from 'net';
 import pg from 'pg';
 
 /**
@@ -10,6 +11,35 @@ import pg from 'pg';
  */
 const DATABASE_URL = process.env.DATABASE_URL || '';
 
+/**
+ * Node 20+ dials every resolved address in parallel (Happy Eyeballs) and gives
+ * each one only 250 ms. A managed Postgres in another region routinely needs
+ * longer than that just for the TCP handshake, so every address "times out",
+ * Node raises an AggregateError whose `.message` is empty, and the failure
+ * surfaces as a blank error. Give each attempt a realistic budget instead.
+ */
+const CONNECT_ATTEMPT_TIMEOUT_MS = Number(process.env.DB_CONNECT_ATTEMPT_TIMEOUT_MS) || 5000;
+if (
+  typeof net.setDefaultAutoSelectFamilyAttemptTimeout === 'function' &&
+  net.getDefaultAutoSelectFamilyAttemptTimeout() < CONNECT_ATTEMPT_TIMEOUT_MS
+) {
+  net.setDefaultAutoSelectFamilyAttemptTimeout(CONNECT_ATTEMPT_TIMEOUT_MS);
+}
+
+/**
+ * `AggregateError` (one entry per address that failed to connect) carries an
+ * empty `.message`, which is how a real network failure ends up logged as
+ * nothing at all. Unwrap it so the logs name the actual cause.
+ */
+export function describeError(e) {
+  if (!e) return 'unknown error';
+  if (e instanceof AggregateError && Array.isArray(e.errors) && e.errors.length) {
+    const causes = e.errors.map((x) => `${x.code || x.name}: ${x.message}`);
+    return `${e.message || 'AggregateError'} [${[...new Set(causes)].join('; ')}]`;
+  }
+  return e.message || String(e);
+}
+
 const g = globalThis;
 
 function makePool() {
@@ -20,7 +50,7 @@ function makePool() {
     ssl: isLocal ? false : { rejectUnauthorized: false },
     max: 3,
   });
-  pool.on('error', (e) => console.error('[db] pool error:', e.message));
+  pool.on('error', (e) => console.error('[db] pool error:', describeError(e)));
   return pool;
 }
 
@@ -82,7 +112,7 @@ export function ensureSchema() {
   if (!g.__anantaSchema) {
     g.__anantaSchema = runEnsureSchema().catch((e) => {
       g.__anantaSchema = null; // allow a retry on the next request
-      console.error('[db] schema init failed:', e.message);
+      console.error('[db] schema init failed:', describeError(e));
       throw e;
     });
   }

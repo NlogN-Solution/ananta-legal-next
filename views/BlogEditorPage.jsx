@@ -197,7 +197,8 @@ function DocumentPanel({ doc, status, error, onPick, onRetry, disabled }) {
             <>
               {' '}
               <span className="editor-warn">
-                Page previews are unavailable — the article text will still publish.
+                The designed pages can’t be rendered for this document, so the post will show
+                the extracted text instead of the Canva layout.
               </span>
             </>
           )}
@@ -290,7 +291,9 @@ export default function BlogEditorPage() {
             blocks: d.structured_content,
             text: d.extracted_text || '',
             html: d.content || '',
-            pageImages: null, // rebuilt on the server for the public page
+            // Derived server-side from the stored document, so the preview
+            // shows the same pages the public page renders.
+            pageImages: d.page_images || [],
           });
           setDocStatus('ready');
         }
@@ -548,7 +551,6 @@ export default function BlogEditorPage() {
       title: post.title || 'Untitled post',
       content: doc?.html || post.content || '',
       document_page_count: doc?.pageCount || post.document_page_count || null,
-      document_url: doc?.documentUrl || post.document_url || null,
       created_at: post.created_at || new Date().toISOString(),
       published_at: post.published_at || null,
       read_time: post.read_time || '',

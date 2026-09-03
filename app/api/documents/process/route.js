@@ -2,9 +2,8 @@ import { requireAdmin } from '@/server-lib/session';
 import {
   isOwnDocument,
   pdfRawUrl,
-  pdfPageUrl,
+  pdfPageImages,
   pdfDownloadUrl,
-  isPubliclyDeliverable,
 } from '@/server-lib/cloudinary';
 import { extractPdf } from '@/server-lib/pdf/extract';
 import { blocksToHtml, firstParagraph } from '@/server-lib/pdf/blocks-to-html';
@@ -76,13 +75,11 @@ export async function POST(request) {
       );
     }
 
-    // Only advertise the original PDF publicly when the CDN will actually
-    // serve it; otherwise every visitor's "open the PDF" click would 401.
-    const canLinkPdf = await isPubliclyDeliverable(publicUrl);
-
     return Response.json({
       publicId,
-      documentUrl: canLinkPdf ? publicUrl : null,
+      // Recorded as the source of the post. The public page renders the
+      // rasterised pages and never links to the PDF itself.
+      documentUrl: publicUrl,
       filename: filename || null,
       size: Number(bytes) || buffer.length,
       mimeType: 'application/pdf',
@@ -92,13 +89,7 @@ export async function POST(request) {
       html,
       excerptSuggestion: firstParagraph(blocks),
       // Same URLs the public page will use, so the preview is faithful.
-      pageImages: Array.from({ length: Math.min(pageCount, 60) }, (_, i) => ({
-        page: i + 1,
-        src: pdfPageUrl(publicId, i + 1, 1200),
-        srcSet: [740, 1200, 1600]
-          .map((w) => `${pdfPageUrl(publicId, i + 1, w)} ${w}w`)
-          .join(', '),
-      })),
+      pageImages: pdfPageImages(publicId, pageCount),
     });
   } catch (e) {
     if (e instanceof PdfError) {

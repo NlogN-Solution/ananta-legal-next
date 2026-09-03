@@ -98,54 +98,40 @@
   border-radius: 4px;
 }
 
-/* ============ CANVA DOCUMENT (page images below the article) ============ */
-.canva-doc {
-  margin-top: clamp(2.5rem, 6vw, 4rem);
-  padding-top: clamp(1.8rem, 4vw, 2.5rem);
-  border-top: 1px solid var(--line);
+/* ============ CANVA DOCUMENT ============ */
+/* The uploaded design is the article. Its pages are stacked into one
+   continuous surface — no gap, border, radius, shadow, counter or any other
+   page furniture — so a multi-page export reads as a single document rather
+   than a pile of pages. Nothing here restyles the design itself. */
+
+/* A designed page needs more room than the 740px reading column set above. */
+.blog-post--doc .wrap{width:min(860px,94vw)}
+.canva-doc{
+  display:block;width:100%;margin:0 auto;
+  /* kill the inline-formatting whitespace that would show between images */
+  line-height:0;font-size:0;
+  background:var(--surface);
 }
-.canva-doc__head h2 {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 1.45rem;
-  letter-spacing: -0.02em;
-  color: var(--ink);
-  margin-bottom: 0.4rem;
+.canva-doc__page{
+  display:block;width:100%;height:auto;
+  margin:0;border:0;border-radius:0;box-shadow:none;background:transparent;
+  vertical-align:top;
 }
-.canva-doc__head p {
-  font-size: 0.92rem;
-  color: var(--ink-soft);
-  line-height: 1.6;
-  margin-bottom: 1.6rem;
+/* Page heights land on fractional pixels once scaled, which leaves a hairline
+   seam between neighbours. A 1px overlap swallows it without visibly shifting
+   anything — the pages of a Canva export meet on a flat background. */
+.canva-doc__page + .canva-doc__page{margin-top:-1px}
+
+/* The text layer: the same words the design shows, kept out of sight but not
+   out of reach. Clipped rather than `display:none` so screen readers, reader
+   modes and crawlers still get the article; it is the text alternative for a
+   document made of images of text, never a second copy for the visitor. */
+.canva-doc__text{
+  position:absolute;
+  width:1px;height:1px;
+  margin:-1px;padding:0;border:0;
+  overflow:hidden;
+  clip:rect(0 0 0 0);
+  clip-path:inset(50%);
+  white-space:nowrap;
 }
-.canva-doc__pages {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: clamp(1rem, 2.5vw, 1.6rem);
-  counter-reset: canva-page;
-}
-.canva-doc__pages li { position: relative; }
-.canva-doc__pages img {
-  display: block;
-  width: 100%;
-  height: auto;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--surface);
-  box-shadow: var(--shadow);
-}
-.canva-doc__download {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-top: 1.6rem;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--olive);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-.canva-doc__download .arr { transition: transform 0.25s; }
-.canva-doc__download:hover .arr { transform: translate(3px, -3px); }

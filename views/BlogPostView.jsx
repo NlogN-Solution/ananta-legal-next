@@ -64,24 +64,28 @@ export default function BlogPostView({ post, documentPages = [], preview = false
     </section>
   );
 
+  /* Two shapes of post share this one <article>:
+     - canva_pdf: the uploaded design is the article the visitor reads, with
+       the extracted text riding along as its accessible/crawlable equivalent.
+       The cover image is the blog card's thumbnail, not part of the document,
+       so it isn't repeated above the design.
+     - legacy_html: the old editor's own HTML, rendered exactly as before. */
   const Body = (
-    <section className="blog-post">
+    <section className={`blog-post${isCanva ? ' blog-post--doc' : ''}`}>
       <div className="wrap">
-        {post.cover_image && (
+        {!isCanva && post.cover_image && (
           <img className="blog-post-cover" src={post.cover_image} alt="" />
         )}
-        <article
-          className="blog-post-body"
-          dangerouslySetInnerHTML={{ __html: post.content || '' }}
-        />
-        {isCanva && (
-          <CanvaDocument
-            pages={documentPages}
-            fileUrl={post.document_url}
-            title={post.title}
-            pageCount={post.document_page_count}
-          />
-        )}
+        <article className="blog-post-article">
+          {isCanva ? (
+            <CanvaDocument pages={documentPages} html={post.content || ''} />
+          ) : (
+            <div
+              className="blog-post-body"
+              dangerouslySetInnerHTML={{ __html: post.content || '' }}
+            />
+          )}
+        </article>
       </div>
     </section>
   );

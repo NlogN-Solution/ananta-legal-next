@@ -3,7 +3,7 @@ import { pool, ensureSchema, dbUnavailableResponse } from '@/server-lib/db';
 import { requireAdmin, getSession } from '@/server-lib/session';
 import { estimateReadTime } from '@/server-lib/posts-util';
 import { buildPostContent, postFieldsFromBody } from '@/server-lib/post-content';
-import { destroyAsset } from '@/server-lib/cloudinary';
+import { destroyAsset, pdfPageImages } from '@/server-lib/cloudinary';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,7 +29,12 @@ export async function GET(_request, { params }) {
       const session = await getSession();
       if (!session?.admin) return Response.json({ error: 'Not found.' }, { status: 404 });
     }
-    return Response.json(rows[0]);
+    // The admin preview renders the same document the public page does, so it
+    // needs the page images too — they are derived, never stored.
+    return Response.json({
+      ...rows[0],
+      page_images: pdfPageImages(rows[0].document_public_id, rows[0].document_page_count),
+    });
   } catch (e) {
     console.error('[posts:get]', e.message);
     return Response.json({ error: 'Failed to load post.' }, { status: 500 });

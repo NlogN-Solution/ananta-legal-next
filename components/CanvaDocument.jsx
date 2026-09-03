@@ -3,22 +3,33 @@
 import { useState } from 'react';
 
 /**
- * The Canva-designed document, page by page.
+ * A Canva post's body: one article, expressed as two layers over the same
+ * content.
  *
- * The page images are produced by Cloudinary from the stored PDF, so nothing
- * PDF-related ships to the browser — they're ordinary responsive <img>s that
- * lazy-load as the reader scrolls. The article text above this section is the
- * accessible, crawlable version of the same content; this is the visual
- * companion, which is why the whole block is hidden from assistive tech only
- * when it fails to load, never by default.
+ * Visual layer — the design itself. Cloudinary rasterises each page of the
+ * stored PDF and the pages are stacked edge to edge, so a multi-page export
+ * reads as a single continuous surface: no gaps, borders, shadows, numbering
+ * or any other page furniture. Nothing about the design is re-interpreted;
+ * the pages are delivered as ordinary responsive images.
+ *
+ * Text layer — the same words, extracted from the same PDF server-side, as
+ * plain semantic HTML. To a screen reader the layer above is a wall of images
+ * of text, so this is its text alternative: it is *visually* hidden (clipped,
+ * never `display:none`) precisely so assistive technology, reader modes and
+ * crawlers can still reach it. It carries exactly what the design shows and
+ * never appears as a second visible copy of the article.
+ *
+ * When the page images can't be delivered — no Cloudinary in development, or
+ * an account with PDF delivery switched off — the text layer becomes the
+ * visible article instead, so a post is never blank.
  */
-export default function CanvaDocument({ pages = [], fileUrl, title, pageCount }) {
+export default function CanvaDocument({ pages = [], html = '' }) {
   const [failed, setFailed] = useState(() => new Set());
 
-  const total = pageCount || pages.length;
   const usable = pages.filter((p) => !failed.has(p.page));
+  const hasVisual = usable.length > 0;
 
-  if (!pages.length && !fileUrl) return null;
+  if (!hasVisual && !html) return null;
 
   const markFailed = (page) =>
     setFailed((prev) => {
@@ -28,43 +39,37 @@ export default function CanvaDocument({ pages = [], fileUrl, title, pageCount })
     });
 
   return (
-    <section className="canva-doc" aria-labelledby="canva-doc-heading">
-      <div className="canva-doc__head">
-        <h2 id="canva-doc-heading">The designed document</h2>
-        <p>
-          {total ? `${total} page${total === 1 ? '' : 's'}. ` : ''}
-          The full article is written out above — this is the same document as it was designed.
-        </p>
-      </div>
-
-      {usable.length > 0 && (
-        <ol className="canva-doc__pages">
+    <>
+      {hasVisual && (
+        // Hidden from assistive tech because the text layer below conveys the
+        // same content in a form a screen reader can actually use.
+        <div className="canva-doc" aria-hidden="true">
           {usable.map((p) => (
-            <li key={p.page}>
-              <img
-                src={p.src}
-                srcSet={p.srcSet}
-                sizes="(max-width: 820px) 92vw, 740px"
-                alt={`${title} — page ${p.page} of ${total}`}
-                loading="lazy"
-                decoding="async"
-                onError={() => markFailed(p.page)}
-              />
-            </li>
+            <img
+              key={p.page}
+              className="canva-doc__page"
+              src={p.src}
+              srcSet={p.srcSet}
+              sizes="(max-width: 915px) 94vw, 860px"
+              alt=""
+              // The opening screens carry the article's LCP; the rest can wait
+              // until the reader scrolls to them.
+              loading={p.page <= 2 ? 'eager' : 'lazy'}
+              fetchPriority={p.page === 1 ? 'high' : undefined}
+              decoding="async"
+              draggable={false}
+              onError={() => markFailed(p.page)}
+            />
           ))}
-        </ol>
+        </div>
       )}
 
-      {fileUrl && (
-        <a
-          className="canva-doc__download"
-          href={fileUrl}
-          target="_blank"
-          rel="noopener nofollow"
-        >
-          Open the original PDF <span className="arr">↗</span>
-        </a>
+      {html && (
+        <div
+          className={hasVisual ? 'blog-post-body canva-doc__text' : 'blog-post-body'}
+          dangerouslySetInnerHTML={{ __html: html }}
+        />
       )}
-    </section>
+    </>
   );
 }
