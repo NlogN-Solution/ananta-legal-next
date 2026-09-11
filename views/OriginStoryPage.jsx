@@ -4,10 +4,11 @@ import React from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import CTA from '../components/CTA';
 import DeckLayout from '../components/DeckLayout';
+import { usePageLayout } from '@/lib/blocks/compose';
 import { useLang } from '../i18n/LanguageContext';
 import { fadeUp, scaleIn, staggerContainer } from '../animation/variants';
 
-export default function OriginStoryPage() {
+export default function OriginStoryPage({ sections = [] }) {
   const { t } = useLang();
   const prefersReducedMotion = useReducedMotion();
   const o = t.origin;
@@ -168,5 +169,7 @@ export default function OriginStoryPage() {
     { id: 'origin-cta', label: t.deck.labels.contact, node: <CTA /> },
   ];
 
-  return <DeckLayout pages={PAGES} />;
+  /* The saved layout wins when the page has been arranged in the
+     dashboard; with none saved this is exactly PAGES. */
+  return <DeckLayout pages={usePageLayout(sections, PAGES)} />;
 }

@@ -26,7 +26,7 @@ function fmtDate(iso) {
  * `preview` renders the same markup for the admin's pre-publish preview, so
  * what they approve is what visitors get.
  */
-export default function BlogPostView({ post, documentPages = [], preview = false }) {
+export default function BlogPostView({ post, preview = false }) {
   const { t } = useLang();
   const bp = t.blogPost;
   const authenticated = useAuth();
@@ -55,7 +55,7 @@ export default function BlogPostView({ post, documentPages = [], preview = false
             {authenticated && !preview && (
               <>
                 <span>•</span>
-                <Link to={`/blog/edit/${post.slug}`} style={{ color: 'var(--olive)' }}>Edit</Link>
+                <Link to={`/admin/blog/${post.slug}`} style={{ color: 'var(--olive)' }}>Edit</Link>
               </>
             )}
           </div>
@@ -65,20 +65,20 @@ export default function BlogPostView({ post, documentPages = [], preview = false
   );
 
   /* Two shapes of post share this one <article>:
-     - canva_pdf: the uploaded design is the article the visitor reads, with
-       the extracted text riding along as its accessible/crawlable equivalent.
-       The cover image is the blog card's thumbnail, not part of the document,
-       so it isn't repeated above the design.
+     - canva_pdf: the article extracted from the uploaded PDF, rendered in the
+       site's own type and colours rather than as pictures of its pages. The
+       cover image is the blog card's thumbnail, not part of the document, so
+       it isn't repeated above the body.
      - legacy_html: the old editor's own HTML, rendered exactly as before. */
   const Body = (
-    <section className={`blog-post${isCanva ? ' blog-post--doc' : ''}`}>
+    <section className="blog-post">
       <div className="wrap">
         {!isCanva && post.cover_image && (
           <img className="blog-post-cover" src={post.cover_image} alt="" />
         )}
         <article className="blog-post-article">
           {isCanva ? (
-            <CanvaDocument pages={documentPages} html={post.content || ''} />
+            <CanvaDocument html={post.content || ''} />
           ) : (
             <div
               className="blog-post-body"

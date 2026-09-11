@@ -2,12 +2,13 @@
 
 import { motion, useReducedMotion } from 'framer-motion';
 import { useLang } from '../i18n/LanguageContext';
+import { mergeContent } from '../lib/blocks/content';
 import { fadeUp, staggerContainer } from '../animation/variants';
 import { useLineReveal } from '../animation/gsapHooks';
 
-export default function Stories() {
+export default function Stories({ content }) {
   const { t } = useLang();
-  const s = t.stories;
+  const s = mergeContent(t.stories, content);
   const prefersReducedMotion = useReducedMotion();
   const headRef = useLineReveal();
 

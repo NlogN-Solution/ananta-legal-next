@@ -1,13 +1,7 @@
-'use client';
+import { redirect } from 'next/navigation';
 
-import dynamic from 'next/dynamic';
-
-// The editor is admin-only and touches browser APIs on load — client only.
-const BlogEditorPage = dynamic(() => import('@/views/BlogEditorPage'), {
-  ssr: false,
-  loading: () => <div style={{ minHeight: '60vh' }} />,
-});
-
+/* Writing moved into the dashboard, where it sits alongside pages, media and
+   the account. The old URL still works so nothing bookmarked breaks. */
 export default function Page() {
-  return <BlogEditorPage />;
+  redirect('/admin/blog/new');
 }

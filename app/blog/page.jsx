@@ -1,4 +1,5 @@
 import { listPosts, toPublicPost } from '@/server-lib/posts-repo';
+import { getPageSections } from '@/server-lib/sections-repo';
 import { SITE_NAME, absoluteUrl } from '@/lib/site';
 import BlogListView from '@/views/BlogListView';
 
@@ -24,6 +25,6 @@ export const metadata = {
 };
 
 export default async function BlogRoute() {
-  const posts = await listPosts();
-  return <BlogListView posts={posts.map(toPublicPost)} />;
+  const [posts, sections] = await Promise.all([listPosts(), getPageSections('blog')]);
+  return <BlogListView posts={posts.map(toPublicPost)} sections={sections} />;
 }

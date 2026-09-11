@@ -4,9 +4,10 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, Link } from '@/lib/router';
 import { apiUrl } from '../lib/api';
 import BlogPostView from './BlogPostView';
+import LoginGate from './admin/LoginGate';
 
 /**
- * Blog admin.
+ * The post editor — one panel of the dashboard (/admin/blog/new, /admin/blog/:slug).
  *
  * New articles are designed in Canva, exported as PDF and uploaded here; the
  * server extracts the text into semantic HTML for search engines while the
@@ -60,66 +61,6 @@ function writeDraft(value) {
   } catch {
     /* private mode or quota — the editor still works, just without recovery */
   }
-}
-
-/* --------------------------------------------------------------- login ---- */
-function LoginGate({ onAuthed }) {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
-
-  const submit = async (e) => {
-    e.preventDefault();
-    setBusy(true);
-    setError('');
-    try {
-      const r = await api('/api/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
-      });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.error || 'Login failed.');
-      onAuthed();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="editor-page">
-      <div className="wrap editor-login">
-        <img className="editor-login__mark" src="/logo.png" alt="" width="48" height="48" />
-        <h1>Admin sign in</h1>
-        <p>Sign in to write and edit blog posts.</p>
-        {error && <div className="editor-error">{error}</div>}
-        <form onSubmit={submit}>
-          <label>
-            Username
-            <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" />
-          </label>
-          <label>
-            Password
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="current-password"
-            />
-          </label>
-          <button className="btn btn-primary" disabled={busy}>
-            {busy ? 'Signing in…' : 'Sign in'} <span className="arr">↗</span>
-          </button>
-        </form>
-        <Link to="/blog" className="editor-back" style={{ marginTop: '1.5rem', display: 'inline-block' }}>
-          ← Back to blog
-        </Link>
-      </div>
-    </div>
-  );
 }
 
 /* ------------------------------------------------------ document uploader -- */
@@ -193,15 +134,6 @@ function DocumentPanel({ doc, status, error, onPick, onRetry, disabled }) {
           {doc.size ? `, ${(doc.size / 1024 / 1024).toFixed(1)} MB` : ''}. Extracted{' '}
           {doc.text ? doc.text.split(/\s+/).filter(Boolean).length.toLocaleString() : 0} words of
           searchable text.
-          {doc.pageImages?.length === 0 && (
-            <>
-              {' '}
-              <span className="editor-warn">
-                The designed pages can’t be rendered for this document, so the post will show
-                the extracted text instead of the Canva layout.
-              </span>
-            </>
-          )}
         </p>
       )}
     </div>
@@ -358,11 +290,6 @@ export default function BlogEditorPage() {
     writeDraft(hasWork ? { post, doc } : null);
   }, [slug, post, doc]);
 
-  const logout = async () => {
-    await api('/api/logout', { method: 'POST' });
-    setAuthed(false);
-  };
-
   /* --- cover image ------------------------------------------------------ */
   const uploadCover = async (e) => {
     const file = e.target.files?.[0];
@@ -499,7 +426,7 @@ export default function BlogEditorPage() {
       const data = await r.json();
       if (!r.ok) throw new Error(data.error || 'Save failed.');
       writeDraft(null); // the post now lives in the database
-      navigate(publish ? `/blog/${data.slug}` : `/blog/edit/${data.slug}`);
+      navigate(publish ? `/blog/${data.slug}` : `/admin/blog/${data.slug}`);
     } catch (e) {
       setError(e.message || 'Save failed.');
     } finally {
@@ -516,7 +443,7 @@ export default function BlogEditorPage() {
       const r = await api(`/api/posts/${post.id}`, { method: 'DELETE' });
       const data = await r.json();
       if (!r.ok) throw new Error(data.error || 'Delete failed.');
-      navigate('/blog');
+      navigate('/admin/blog');
     } catch (e) {
       setError(e.message || 'Delete failed.');
       setDeleting(false);
@@ -533,7 +460,16 @@ export default function BlogEditorPage() {
       </div>
     );
   }
-  if (!authed) return <LoginGate onAuthed={() => setAuthed(true)} />;
+  if (!authed) {
+    return (
+      <LoginGate
+        onAuthed={() => setAuthed(true)}
+        subtitle="Sign in to write and edit blog posts."
+        backTo="/blog"
+        backLabel="← Back to blog"
+      />
+    );
+  }
   if (loading) {
     return (
       <div className="editor-page">
@@ -564,7 +500,7 @@ export default function BlogEditorPage() {
           </button>
         </div>
         <div className="editor-previewbody">
-          <BlogPostView post={draft} documentPages={doc?.pageImages || []} preview />
+          <BlogPostView post={draft} preview />
         </div>
       </>
     );
@@ -576,9 +512,8 @@ export default function BlogEditorPage() {
     <div className="editor-page">
       <div className="wrap editor-shell">
         <div className="editor-bar">
-          <Link to="/blog" className="editor-back">← Back to blog</Link>
+          <Link to="/admin/blog" className="editor-back">← All posts</Link>
           <h1>{post.id ? 'Edit post' : 'Create blog'}</h1>
-          <button className="editor-back" onClick={logout} type="button">Log out</button>
           {post.id && (
             <button
               className="editor-delete"

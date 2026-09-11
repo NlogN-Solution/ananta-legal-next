@@ -2,6 +2,7 @@
 
 import { motion, useReducedMotion } from 'framer-motion';
 import { useLang } from '../i18n/LanguageContext';
+import { mergeContent } from '../lib/blocks/content';
 import { fadeUp, staggerContainer } from '../animation/variants';
 import { useCountUp, useLineReveal } from '../animation/gsapHooks';
 
@@ -15,9 +16,9 @@ function Stat({ n, k, reduced }) {
   );
 }
 
-export default function Approach() {
+export default function Approach({ content }) {
   const { t } = useLang();
-  const a = t.approach;
+  const a = mergeContent(t.approach, content);
   const prefersReducedMotion = useReducedMotion();
   const leadRef = useLineReveal();
 

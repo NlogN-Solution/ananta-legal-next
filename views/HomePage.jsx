@@ -11,6 +11,7 @@ import Stories from '../components/Stories';
 import FAQ from '../components/FAQ';
 import CTA from '../components/CTA';
 import DeckLayout from '../components/DeckLayout';
+import { usePageLayout } from '@/lib/blocks/compose';
 import { useLang } from '../i18n/LanguageContext';
 
 /* The marquee gets its own "divider" spread so it reads as a deliberate
@@ -31,7 +32,7 @@ function MarqueeDivider() {
   );
 }
 
-export default function HomePage() {
+export default function HomePage({ sections = [] }) {
   const { t } = useLang();
   const L = t.deck.labels;
 
@@ -47,5 +48,7 @@ export default function HomePage() {
     { id: 'contact', label: L.contact, node: <CTA /> },
   ];
 
-  return <DeckLayout pages={PAGES} />;
+  /* The saved layout wins when the page has been arranged in the
+     dashboard; with none saved this is exactly PAGES. */
+  return <DeckLayout pages={usePageLayout(sections, PAGES)} />;
 }

@@ -1,7 +1,7 @@
 import { pool } from '@/server-lib/db';
 import { useCloudinary } from '@/server-lib/cloudinary';
 import { mailEnabled } from '@/server-lib/mailer';
-import { loginEnabled } from '@/server-lib/session';
+import { loginConfigured } from '@/server-lib/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,7 +10,7 @@ export async function GET() {
     ok: true,
     db: Boolean(pool),
     cloudinary: useCloudinary,
-    loginEnabled,
+    loginEnabled: await loginConfigured(),
     mail: mailEnabled,
   });
 }

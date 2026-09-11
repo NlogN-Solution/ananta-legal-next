@@ -5,6 +5,7 @@ import { Link } from '@/lib/router';
 import { motion, useReducedMotion } from 'framer-motion';
 import CTA from '../components/CTA';
 import DeckLayout from '../components/DeckLayout';
+import { usePageLayout } from '@/lib/blocks/compose';
 import { useLang } from '../i18n/LanguageContext';
 import { fadeUp, staggerContainer } from '../animation/variants';
 
@@ -18,7 +19,7 @@ const META = [
   { slug: 'exits-disputes', num: '06', icon: <path d="M16 3h5v5M21 3l-7 7M8 21H3v-5M3 21l7-7" /> },
 ];
 
-export default function PracticeAreasPage() {
+export default function PracticeAreasPage({ sections = [] }) {
   const { t } = useLang();
   const prefersReducedMotion = useReducedMotion();
   const pa = t.practiceAreas;
@@ -114,5 +115,7 @@ export default function PracticeAreasPage() {
     { id: 'pa-cta', label: t.deck.labels.contact, node: <CTA /> },
   ];
 
-  return <DeckLayout pages={PAGES} />;
+  /* The saved layout wins when the page has been arranged in the
+     dashboard; with none saved this is exactly PAGES. */
+  return <DeckLayout pages={usePageLayout(sections, PAGES)} />;
 }

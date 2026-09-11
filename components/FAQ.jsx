@@ -3,6 +3,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { useLang } from '../i18n/LanguageContext';
+import { mergeContent } from '../lib/blocks/content';
 import { fadeUp, staggerContainer } from '../animation/variants';
 
 function FAQItem({ question, answer }) {
@@ -30,9 +31,9 @@ function FAQItem({ question, answer }) {
   );
 }
 
-export default function FAQ() {
+export default function FAQ({ content }) {
   const { t } = useLang();
-  const f = t.faq;
+  const f = mergeContent(t.faq, content);
   const prefersReducedMotion = useReducedMotion();
 
   return (

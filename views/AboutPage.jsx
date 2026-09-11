@@ -4,6 +4,7 @@ import React from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import CTA from '../components/CTA';
 import DeckLayout from '../components/DeckLayout';
+import { usePageLayout } from '@/lib/blocks/compose';
 import { useLang } from '../i18n/LanguageContext';
 import { fadeUp, staggerContainer } from '../animation/variants';
 
@@ -14,7 +15,7 @@ const CRED_ICONS = [
   <><circle cx="12" cy="12" r="10" /><path d="M2 12h20M12 2c3.5 3 5.5 7 5.5 10S15.5 19 12 22C8.5 19 6.5 15 6.5 12S8.5 5 12 2z" /></>,
 ];
 
-export default function AboutPage() {
+export default function AboutPage({ sections = [] }) {
   const { t } = useLang();
   const a = t.about;
   const prefersReducedMotion = useReducedMotion();
@@ -152,5 +153,7 @@ export default function AboutPage() {
     { id: 'about-cta', label: t.deck.labels.contact, node: <CTA /> },
   ];
 
-  return <DeckLayout pages={PAGES} />;
+  /* The saved layout wins when the page has been arranged in the
+     dashboard; with none saved this is exactly PAGES. */
+  return <DeckLayout pages={usePageLayout(sections, PAGES)} />;
 }

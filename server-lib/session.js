@@ -4,6 +4,10 @@ import { cookies } from 'next/headers';
 /**
  * Admin session — a single boolean (`admin`) sealed into an encrypted cookie.
  *
+ * The credentials themselves live in server-lib/auth.js (the `admin_users`
+ * row); ADMIN_USER / ADMIN_PASSWORD are re-exported here only because that is
+ * where they have always been read, and they now seed that row.
+ *
  * Replaces the old express-session + connect-pg-simple store (which needs a
  * long-lived server). Behaviour from the admin's point of view is identical:
  * POST /api/login seals the cookie, it survives ~30 days, POST /api/logout
@@ -13,7 +17,6 @@ const IS_PROD = process.env.NODE_ENV === 'production';
 
 export const ADMIN_USER = process.env.ADMIN_USER || 'admin';
 export const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
-export const loginEnabled = Boolean(ADMIN_PASSWORD);
 
 const sessionOptions = {
   password: process.env.SESSION_SECRET || 'dev-insecure-secret-change-me-please-32+',

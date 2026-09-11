@@ -4,6 +4,7 @@ import React from 'react';
 import { Link } from '@/lib/router';
 import CTA from '../components/CTA';
 import DeckLayout from '../components/DeckLayout';
+import { usePageLayout } from '@/lib/blocks/compose';
 import useAuth from '../hooks/useAuth';
 import { useLang } from '../i18n/LanguageContext';
 
@@ -67,7 +68,7 @@ function PostCard({ post }) {
  * Blog index. Posts are supplied by the server component that renders this,
  * so the cards (and the links search engines follow) are in the initial HTML.
  */
-export default function BlogListView({ posts = [] }) {
+export default function BlogListView({ posts = [], sections = [] }) {
   const { t } = useLang();
   const b = t.blog;
   const authenticated = useAuth();
@@ -79,7 +80,7 @@ export default function BlogListView({ posts = [] }) {
         <h1>{b.h1}<span style={{ color: 'var(--lime)' }}>.</span></h1>
         <p className="sub">{b.sub}</p>
         {authenticated && (
-          <Link to="/blog/new" className="btn btn-ghost" style={{ marginTop: '1.6rem' }}>
+          <Link to="/admin/blog/new" className="btn btn-ghost" style={{ marginTop: '1.6rem' }}>
             {b.write || 'Write a post'} <span className="arr">↗</span>
           </Link>
         )}
@@ -94,7 +95,7 @@ export default function BlogListView({ posts = [] }) {
           <div className="blog-empty">
             <p>No posts published yet.</p>
             {authenticated && (
-              <Link to="/blog/new" className="btn btn-primary" style={{ marginTop: '1rem' }}>
+              <Link to="/admin/blog/new" className="btn btn-primary" style={{ marginTop: '1rem' }}>
                 {b.write || 'Write a post'} <span className="arr">↗</span>
               </Link>
             )}
@@ -116,5 +117,7 @@ export default function BlogListView({ posts = [] }) {
     { id: 'blog-cta', label: t.deck.labels.contact, node: <CTA /> },
   ];
 
-  return <DeckLayout pages={PAGES} />;
+  /* The saved layout wins when the page has been arranged in the
+     dashboard; with none saved this is exactly PAGES. */
+  return <DeckLayout pages={usePageLayout(sections, PAGES)} />;
 }

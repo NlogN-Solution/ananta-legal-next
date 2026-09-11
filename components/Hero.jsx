@@ -3,6 +3,7 @@
 import { Link } from '@/lib/router';
 import { motion, useReducedMotion } from 'framer-motion';
 import { useLang } from '../i18n/LanguageContext';
+import { mergeContent } from '../lib/blocks/content';
 import { fadeUp, staggerContainer, scaleIn } from '../animation/variants';
 import { useHeroMonogram } from '../animation/gsapHooks';
 import { whatsappUrl } from '../lib/whatsapp';
@@ -35,9 +36,9 @@ const SEAL_TICKS = Array.from({ length: 24 }, (_, i) => {
   };
 });
 
-export default function Hero() {
+export default function Hero({ content }) {
   const { t } = useLang();
-  const h = t.hero;
+  const h = mergeContent(t.hero, content);
   const prefersReducedMotion = useReducedMotion();
   const v = (variant) => (prefersReducedMotion ? undefined : variant);
   const monogramRef = useHeroMonogram();

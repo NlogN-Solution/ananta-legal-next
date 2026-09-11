@@ -2,9 +2,10 @@
 
 import React, { useState } from 'react';
 import DeckLayout from '../components/DeckLayout';
+import { usePageLayout } from '@/lib/blocks/compose';
 import { useLang } from '../i18n/LanguageContext';
 
-export default function LeadMagnetPage() {
+export default function LeadMagnetPage({ sections = [] }) {
   const { t } = useLang();
   const lm = t.leadMagnet;
   const [downloaded, setDownloaded] = useState(false);
@@ -109,5 +110,7 @@ For assistance, contact us: anantalegal9@gmail.com`;
     { id: 'lm-offer', label: lm.labels.offer, node: Offer },
   ];
 
-  return <DeckLayout pages={PAGES} />;
+  /* The saved layout wins when the page has been arranged in the
+     dashboard; with none saved this is exactly PAGES. */
+  return <DeckLayout pages={usePageLayout(sections, PAGES)} />;
 }

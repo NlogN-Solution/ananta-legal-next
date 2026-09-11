@@ -53,7 +53,10 @@
   width:min(740px,92vw);
 }
 .page-header.blog-post-title{padding-bottom:clamp(1.5rem,3vw,2.25rem)}
-.blog-post{margin:0 auto;padding-top:clamp(1rem,2.5vw,1.75rem)}
+/* The base `section` rule pads every side with clamp(5.5rem,11vw,10rem),
+   meant for full hero panels. Left on the bottom it put ~160px of empty
+   page between the end of the article and the CTA panel below it. */
+.blog-post{margin:0 auto;padding-top:clamp(1rem,2.5vw,1.75rem);padding-bottom:clamp(2.5rem,5vw,4rem)}
 .blog-post-header{margin-bottom:1.5rem}
 .blog-post-header .blog-cat-tag{
   font-family:"IBM Plex Mono",monospace;font-size:.68rem;text-transform:uppercase;
@@ -70,6 +73,7 @@
 .blog-post-body *{color:inherit !important;background-color:transparent !important;font-family:inherit !important}
 .blog-post-body h2{font-family:var(--font-display) !important;font-weight:700;font-size:1.7rem;letter-spacing:-.02em;margin:2.5rem 0 1rem;line-height:1.1;color:var(--ink) !important}
 .blog-post-body h3{font-family:var(--font-display) !important;font-weight:700;font-size:1.3rem;margin:2rem 0 .8rem;color:var(--ink) !important}
+.blog-post-body h4{font-family:var(--font-display) !important;font-weight:700;font-size:1.12rem;margin:1.6rem 0 .6rem;color:var(--ink) !important}
 .blog-post-body p{font-size:1.08rem;line-height:1.75;margin-bottom:1.2rem}
 .blog-post-body ul,.blog-post-body ol{margin:1rem 0 1.5rem 1.5rem}
 .blog-post-body li{font-size:1.05rem;line-height:1.7;margin-bottom:.5rem}
@@ -101,39 +105,28 @@
 }
 
 /* ============ CANVA DOCUMENT ============ */
-/* The uploaded design is the article. Its pages are stacked into one
-   continuous surface — no gap, border, radius, shadow, counter or any other
-   page furniture — so a multi-page export reads as a single document rather
-   than a pile of pages. Nothing here restyles the design itself. */
+/* A Canva post is uploaded as a PDF but is never shown as one. Its extracted
+   article inherits `.blog-post-body` above — the site's ink, paper and type,
+   in both themes — so nothing here paints a white sheet or draws a page edge:
+   the body sits on the page background like any other article.
 
-/* A designed page needs more room than the 740px reading column set above. */
-.blog-post--doc .wrap{width:min(860px,94vw)}
-.canva-doc{
-  display:block;width:100%;margin:0 auto;
-  /* kill the inline-formatting whitespace that would show between images */
-  line-height:0;font-size:0;
-  background:var(--surface);
-}
-.canva-doc__page{
-  display:block;width:100%;height:auto;
-  margin:0;border:0;border-radius:0;box-shadow:none;background:transparent;
-  vertical-align:top;
-}
-/* Page heights land on fractional pixels once scaled, which leaves a hairline
-   seam between neighbours. A 1px overlap swallows it without visibly shifting
-   anything — the pages of a Canva export meet on a flat background. */
-.canva-doc__page + .canva-doc__page{margin-top:-1px}
-
-/* The text layer: the same words the design shows, kept out of sight but not
-   out of reach. Clipped rather than `display:none` so screen readers, reader
-   modes and crawlers still get the article; it is the text alternative for a
-   document made of images of text, never a second copy for the visitor. */
-.canva-doc__text{
-  position:absolute;
-  width:1px;height:1px;
-  margin:-1px;padding:0;border:0;
-  overflow:hidden;
-  clip:rect(0 0 0 0);
-  clip-path:inset(50%);
-  white-space:nowrap;
-}
+   Only the vertical rhythm is document-specific. Extraction can't merge a
+   paragraph that straddles a page break, so a document body carries more
+   block boundaries than hand-written copy; at the editor's spacing those
+   boundaries stack into a gappy, list-like column. The scale below is tighter
+   and, more importantly, consistent — a heading owns the space above it, a
+   paragraph owns the space below it, and the two never add up. */
+.blog-post-body--doc > :first-child{margin-top:0}
+.blog-post-body--doc > :last-child{margin-bottom:0}
+.blog-post-body--doc p{margin:0 0 .9rem}
+.blog-post-body--doc h2{margin:2rem 0 .65rem}
+.blog-post-body--doc h3{margin:1.6rem 0 .5rem}
+.blog-post-body--doc h4{margin:1.3rem 0 .4rem}
+/* A heading that follows another heading is a deck, not a new section. */
+.blog-post-body--doc h2 + h3,
+.blog-post-body--doc h3 + h4{margin-top:.6rem}
+.blog-post-body--doc ul,
+.blog-post-body--doc ol{margin:.6rem 0 1.1rem 1.35rem}
+.blog-post-body--doc li{margin-bottom:.3rem}
+.blog-post-body--doc li:last-child{margin-bottom:0}
+.blog-post-body--doc table{margin:1.2rem 0}

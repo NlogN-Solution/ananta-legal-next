@@ -3,10 +3,10 @@
 import React, { useEffect, useRef } from 'react';
 import { useLang } from '../i18n/LanguageContext';
 
-export default function Marquee() {
+export default function Marquee({ items: override }) {
   const trackRef = useRef(null);
   const { t } = useLang();
-  const items = t.marquee;
+  const items = override?.length ? override : t.marquee;
 
   useEffect(() => {
     // Rebuild the seamless loop whenever the language (item list) changes.

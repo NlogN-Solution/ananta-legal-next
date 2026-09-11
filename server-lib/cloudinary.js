@@ -32,14 +32,21 @@ export function cloudName() {
   return cloudinary.config().cloud_name || '';
 }
 
-export function uploadToCloudinary(buffer) {
+/** Full upload result (public_id, dimensions, bytes) for the media library. */
+export function uploadImage(buffer, { folder = 'ananta-blog' } = {}) {
   return new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
-      { folder: 'ananta-blog', resource_type: 'image' },
-      (err, result) => (err ? reject(err) : resolve(result.secure_url))
+      { folder, resource_type: 'image' },
+      (err, result) => (err ? reject(err) : resolve(result))
     );
     stream.end(buffer);
   });
+}
+
+/** Just the delivery URL — the shape the original image upload returned. */
+export async function uploadToCloudinary(buffer) {
+  const result = await uploadImage(buffer);
+  return result.secure_url;
 }
 
 /**

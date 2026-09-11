@@ -3,6 +3,7 @@
 import { motion, useReducedMotion } from 'framer-motion';
 import ServiceCard from './ServiceCard';
 import { useLang } from '../i18n/LanguageContext';
+import { mergeContent } from '../lib/blocks/content';
 import { fadeUp, staggerContainer } from '../animation/variants';
 import { useLineReveal } from '../animation/gsapHooks';
 
@@ -15,9 +16,9 @@ const META = [
   { num: '06', icon: <path d="M16 3h5v5M21 3l-7 7M8 21H3v-5M3 21l7-7" />, slug: 'exits-disputes' },
 ];
 
-export default function Services() {
+export default function Services({ content }) {
   const { t } = useLang();
-  const s = t.services;
+  const s = mergeContent(t.services, content);
   const prefersReducedMotion = useReducedMotion();
   const headRef = useLineReveal();
 
@@ -49,18 +50,25 @@ export default function Services() {
           className="svc-grid"
           variants={prefersReducedMotion ? undefined : staggerContainer}
         >
-          {META.map((m, idx) => (
-            <ServiceCard
-              key={m.num}
-              num={m.num}
-              icon={m.icon}
-              slug={m.slug}
-              title={s.items[idx].title}
-              desc={s.items[idx].desc}
-              learnMore={s.learnMore}
-              index={idx}
-            />
-          ))}
+          {/* The list drives the grid, not META: a service added or removed in
+              the dashboard keeps its icon and number in step, and an unknown
+              index simply cycles back through the icon set rather than
+              rendering nothing. */}
+          {(s.items || []).map((item, idx) => {
+            const meta = META[idx % META.length];
+            return (
+              <ServiceCard
+                key={idx}
+                num={String(idx + 1).padStart(2, '0')}
+                icon={meta.icon}
+                slug={item.slug || meta.slug}
+                title={item.title}
+                desc={item.desc}
+                learnMore={s.learnMore}
+                index={idx}
+              />
+            );
+          })}
         </motion.div>
       </div>
     </motion.section>

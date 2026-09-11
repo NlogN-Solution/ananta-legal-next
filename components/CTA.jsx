@@ -2,13 +2,14 @@
 
 import { motion, useReducedMotion } from 'framer-motion';
 import { useLang } from '../i18n/LanguageContext';
+import { mergeContent } from '../lib/blocks/content';
 import { fadeUp, staggerContainer } from '../animation/variants';
 import { useLineReveal } from '../animation/gsapHooks';
 import { whatsappUrl } from '../lib/whatsapp';
 
-export default function CTA() {
+export default function CTA({ content }) {
   const { t } = useLang();
-  const c = t.cta;
+  const c = mergeContent(t.cta, content);
   const prefersReducedMotion = useReducedMotion();
   const headRef = useLineReveal();
 

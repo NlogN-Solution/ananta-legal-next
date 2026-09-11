@@ -6,9 +6,9 @@ import BlogPostView from '@/views/BlogPostView';
 
 /* Server component: the article's semantic HTML and its structured data are
    rendered into the response, so the post is crawlable and shareable without
-   running any JavaScript — including a Canva post, whose visible body is a
-   stack of page images. Writes call revalidatePath, so this window only
-   matters for out-of-band edits. */
+   running any JavaScript — including a Canva post, whose body is the text
+   extracted from the uploaded PDF. Writes call revalidatePath, so this window
+   only matters for out-of-band edits. */
 export const revalidate = 300;
 
 const plain = (html) =>
@@ -29,8 +29,10 @@ const absoluteImage = (src) =>
 /**
  * The image that represents the post when it is shared or listed.
  *
- * A Canva post often has no separate cover: its own first page is the truest
- * preview of the article, so fall back to that rather than to nothing.
+ * A Canva post often has no separate cover: the rasterised first page of its
+ * PDF is the truest preview of the article, so fall back to that rather than
+ * to nothing. This is the only place those page images are still used — the
+ * page itself renders the extracted article, not pictures of pages.
  */
 function socialImage(post, pages) {
   return absoluteImage(post.cover_image) || pages[0]?.src || null;
@@ -92,9 +94,9 @@ export default async function BlogPostRoute({ params }) {
   const image = socialImage(post, documentPages);
 
   /* The article's own words. For a Canva post they are the text extracted
-     from the PDF — the same content the page carries as the design's text
-     alternative, so the structured data describes what is really on the page
-     rather than a separate summary written for crawlers. */
+     from the PDF — the same content the page renders, so the structured data
+     describes what is really on the page rather than a separate summary
+     written for crawlers. */
   const body = row.content_type === 'canva_pdf'
     ? String(row.extracted_text || '').trim() || plain(row.content)
     : plain(row.content);
@@ -144,7 +146,7 @@ export default async function BlogPostRoute({ params }) {
           __html: JSON.stringify([jsonLd, breadcrumbLd]).replace(/</g, '\\u003c'),
         }}
       />
-      <BlogPostView post={post} documentPages={documentPages} />
+      <BlogPostView post={post} />
     </>
   );
 }

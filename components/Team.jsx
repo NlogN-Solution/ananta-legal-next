@@ -2,13 +2,14 @@
 
 import { motion, useReducedMotion } from 'framer-motion';
 import { useLang } from '../i18n/LanguageContext';
+import { mergeContent } from '../lib/blocks/content';
 import { fadeUp, staggerContainer } from '../animation/variants';
 import { useLineReveal } from '../animation/gsapHooks';
 
-export default function Team() {
+export default function Team({ content }) {
   const { t } = useLang();
-  const s = t.team;
-  const members = t.about.team;
+  const s = mergeContent(t.team, content);
+  const members = content?.members?.length ? content.members : t.about.team;
   const prefersReducedMotion = useReducedMotion();
   const headRef = useLineReveal();
 

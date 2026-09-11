@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import DeckLayout from '../components/DeckLayout';
+import { usePageLayout } from '@/lib/blocks/compose';
 import { useLang } from '../i18n/LanguageContext';
 import { apiUrl } from '../lib/api';
 
@@ -14,7 +15,7 @@ const SERVICE_KEYS = [
   'other',
 ];
 
-export default function ContactPage() {
+export default function ContactPage({ sections = [] }) {
   const { t } = useLang();
   const c = t.contact;
   const [formSubmitted, setFormSubmitted] = useState(false);
@@ -221,5 +222,7 @@ export default function ContactPage() {
     { id: 'contact-map', label: c.labels.map, node: Map },
   ];
 
-  return <DeckLayout pages={PAGES} />;
+  /* The saved layout wins when the page has been arranged in the
+     dashboard; with none saved this is exactly PAGES. */
+  return <DeckLayout pages={usePageLayout(sections, PAGES)} />;
 }

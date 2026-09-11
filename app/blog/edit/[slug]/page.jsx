@@ -1,13 +1,7 @@
-'use client';
+import { redirect } from 'next/navigation';
 
-import dynamic from 'next/dynamic';
-
-// The editor is admin-only and touches browser APIs on load — client only.
-const BlogEditorPage = dynamic(() => import('@/views/BlogEditorPage'), {
-  ssr: false,
-  loading: () => <div style={{ minHeight: '60vh' }} />,
-});
-
-export default function Page() {
-  return <BlogEditorPage />;
+/* Editing moved into the dashboard; the old URL forwards to it. */
+export default async function Page({ params }) {
+  const { slug } = await params;
+  redirect(`/admin/blog/${slug}`);
 }

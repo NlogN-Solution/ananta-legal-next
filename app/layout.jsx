@@ -23,6 +23,7 @@ import '@/styles/origin.css';
 import '@/styles/leadmagnet.css';
 import '@/styles/chat.css';
 import '@/styles/blog-editor.css';
+import '@/styles/admin.css';
 import '@/styles/responsive.css';
 
 export const metadata = {

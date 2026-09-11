@@ -103,6 +103,68 @@ async function runEnsureSchema() {
     `UPDATE posts SET published_at = created_at WHERE published = TRUE AND published_at IS NULL`
   );
 
+  /* ---------------------------------------------------------------- admin --
+     The single admin account. Credentials used to live only in ADMIN_USER /
+     ADMIN_PASSWORD; the env pair now seeds this row the first time it is
+     needed and is ignored afterwards, so the password can be changed from the
+     dashboard without a redeploy. Passwords are stored as scrypt digests —
+     see server-lib/auth.js. */
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS admin_users (
+      id            SERIAL PRIMARY KEY,
+      username      TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+
+  /* ---------------------------------------------------------------- media --
+     A catalogue of everything uploaded through the dashboard. The bytes still
+     live in Cloudinary (or public/uploads in development) — this table only
+     records where they went, so the library can list and delete them without
+     depending on a provider's admin API. */
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS media (
+      id         SERIAL PRIMARY KEY,
+      url        TEXT NOT NULL,
+      public_id  TEXT,
+      filename   TEXT,
+      mime_type  TEXT,
+      bytes      INTEGER,
+      width      INTEGER,
+      height     INTEGER,
+      alt        TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+
+  /* ------------------------------------------------------------- sections --
+     The page builder. One row per section on a page, ordered by `position`.
+     `data` holds the section's copy per language ({ en: {...}, ne: {...} }),
+     shaped by that block type's field schema in lib/blocks/registry.
+
+     A page with no rows is not an empty page: the site falls back to the
+     layout composed in code, which is also what "Reset to default" writes
+     back. So the builder is additive — nothing breaks if the table is empty,
+     and a page can always be returned to its shipped state. */
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS page_sections (
+      id         SERIAL PRIMARY KEY,
+      page       TEXT NOT NULL,
+      position   INTEGER NOT NULL DEFAULT 0,
+      type       TEXT NOT NULL,
+      visible    BOOLEAN NOT NULL DEFAULT TRUE,
+      label      TEXT,
+      data       JSONB NOT NULL DEFAULT '{}'::jsonb,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+  await pool.query(
+    `CREATE INDEX IF NOT EXISTS page_sections_page_idx ON page_sections (page, position)`
+  );
+
   console.log('[db] schema ready');
 }
 

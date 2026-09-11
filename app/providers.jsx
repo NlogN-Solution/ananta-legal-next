@@ -45,6 +45,10 @@ export default function Providers({ children }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const pathname = usePathname();
   const prefersReduced = useReducedMotion();
+  /* The dashboard is a tool, not a page of the site: it brings its own
+     navigation, and the marketing chrome (nav bar, mobile menu, chat launcher)
+     would only get in the way of it. */
+  const isAdmin = pathname === '/admin' || pathname.startsWith('/admin/');
 
   useEffect(() => {
     try {
@@ -69,16 +73,20 @@ export default function Providers({ children }) {
     <LanguageProvider>
       <RouteBar pathname={pathname} reduced={prefersReduced} />
       <ScrollToTop pathname={pathname} />
-      <Navbar
-        theme={theme}
-        toggleTheme={toggleTheme}
-        menuOpen={menuOpen}
-        setMenuOpen={setMenuOpen}
-      />
-      <MobileMenu open={menuOpen} onClose={() => setMenuOpen(false)} />
+      {!isAdmin && (
+        <>
+          <Navbar
+            theme={theme}
+            toggleTheme={toggleTheme}
+            menuOpen={menuOpen}
+            setMenuOpen={setMenuOpen}
+          />
+          <MobileMenu open={menuOpen} onClose={() => setMenuOpen(false)} />
+        </>
+      )}
       <span id="top"></span>
       <PageTransition>{children}</PageTransition>
-      <ChatWidget />
+      {!isAdmin && <ChatWidget />}
     </LanguageProvider>
   );
 }

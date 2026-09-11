@@ -6,8 +6,10 @@ export default function robots() {
       {
         userAgent: '*',
         allow: '/',
-        // The admin editor has nothing to index and shouldn't appear in search.
-        disallow: ['/api/', '/blog/new', '/blog/edit/'],
+        // The dashboard has nothing to index and shouldn't appear in search.
+        // /blog/new and /blog/edit/ now redirect into it and stay listed so
+        // anything that already crawled them stops.
+        disallow: ['/api/', '/admin', '/blog/new', '/blog/edit/'],
       },
     ],
     sitemap: `${SITE_URL}/sitemap.xml`,
