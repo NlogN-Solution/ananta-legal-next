@@ -8,12 +8,15 @@
  * read time through exactly the same code the upload + save endpoints use.
  *
  * Nothing else on the post is touched (title, excerpt, SEO fields, cover,
- * published state, slug).
+ * published state, slug). Posts whose article was corrected by hand in the
+ * editor are skipped, so those corrections are never overwritten — pass
+ * --include-edited to re-extract them anyway (their edits are lost).
  *
  * Usage:
  *   node scripts/reprocess-pdf-posts.mjs                 # dry run, all posts
  *   node scripts/reprocess-pdf-posts.mjs --slug my-post  # dry run, one post
  *   node scripts/reprocess-pdf-posts.mjs --apply         # write the changes
+ *   node scripts/reprocess-pdf-posts.mjs --include-edited  # also hand-edited posts
  *
  * A dry run writes each post's current and regenerated HTML side by side into
  * the output folder (printed at the start) so they can be compared before
@@ -45,8 +48,9 @@ const option = (name) => {
 const apply = flag('--apply');
 const onlySlug = option('--slug');
 const restoreFile = option('--restore');
+const includeEdited = flag('--include-edited');
 
-const { pool, describeError } = await import('../server-lib/db.js');
+const { pool, describeError, ensureSchema } = await import('../server-lib/db.js');
 const { pdfDownloadUrl, pdfRawUrl } = await import('../server-lib/cloudinary.js');
 const { assertValidPdf } = await import('../server-lib/pdf/validate.js');
 const { extractPdf } = await import('../server-lib/pdf/extract.js');
@@ -57,6 +61,13 @@ if (!pool) {
   console.error('DATABASE_URL is not set (looked in .env.local and .env).');
   process.exit(1);
 }
+// Writing runs add any column this version of the code expects
+// (content_edited). A dry run changes nothing, so it only checks for it.
+if (apply || restoreFile) await ensureSchema();
+const { rowCount: hasEditedColumn } = await pool.query(
+  `SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'posts' AND column_name = 'content_edited'`
+);
 
 /* ------------------------------------------------------------- restore ---- */
 
@@ -65,7 +76,8 @@ if (restoreFile) {
   for (const row of rows) {
     await pool.query(
       `UPDATE posts SET structured_content = $2::jsonb, content = $3, extracted_text = $4,
-         read_time = $5, document_page_count = $6, updated_at = $7
+         read_time = $5, document_page_count = $6, updated_at = $7,
+         content_edited = $8
        WHERE id = $1`,
       [
         row.id,
@@ -75,6 +87,7 @@ if (restoreFile) {
         row.read_time,
         row.document_page_count,
         row.updated_at,
+        Boolean(row.content_edited),
       ]
     );
     console.log(`restored  ${row.slug}`);
@@ -104,7 +117,8 @@ const words = (t) => String(t || '').split(/\s+/).filter(Boolean).length;
 
 const { rows } = await pool.query(
   `SELECT id, slug, title, document_public_id, document_url, document_page_count,
-          structured_content, content, extracted_text, read_time, updated_at
+          structured_content, content, extracted_text, read_time, updated_at,
+          ${hasEditedColumn ? 'content_edited' : 'FALSE AS content_edited'}
      FROM posts
     WHERE content_type = 'canva_pdf'
       AND document_public_id IS NOT NULL
@@ -123,7 +137,13 @@ const backup = [];
 let changed = 0;
 let failed = 0;
 
+let skipped = 0;
 for (const row of rows) {
+  if (row.content_edited && !includeEdited) {
+    skipped += 1;
+    console.log(`skipped   ${row.slug}  (edited by hand — use --include-edited to replace)`);
+    continue;
+  }
   try {
     const buffer = await fetchPdf(row);
     assertValidPdf(buffer, { name: `${row.slug}.pdf` });
@@ -163,6 +183,7 @@ for (const row of rows) {
         read_time: row.read_time,
         document_page_count: row.document_page_count,
         updated_at: row.updated_at,
+        content_edited: row.content_edited,
       });
       // Written before every update, so a crash mid-run still leaves a
       // complete backup of everything already changed.
@@ -175,6 +196,7 @@ for (const row of rows) {
            extracted_text      = $4,
            read_time           = $5,
            document_page_count = $6,
+           content_edited      = FALSE,
            updated_at          = now()
          WHERE id = $1`,
         [row.id, fields.structuredContent, content, fields.extractedText, readTime, pageCount]
@@ -187,7 +209,8 @@ for (const row of rows) {
 }
 
 console.log(
-  `\n${rows.length} post(s): ${changed} ${apply ? 'updated' : 'would change'}, ${failed} failed.`
+  `\n${rows.length} post(s): ${changed} ${apply ? 'updated' : 'would change'}, ` +
+    `${skipped} skipped (edited by hand), ${failed} failed.`
 );
 if (apply && backup.length) {
   console.log(`Backup: ${path.join(outDir, 'backup.json')}`);

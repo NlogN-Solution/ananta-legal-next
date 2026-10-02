@@ -390,3 +390,74 @@
 @media (max-width: 680px) {
   .editor-actions .btn { flex: 1 1 100%; justify-content: center; }
 }
+
+/* ============ IN-PLACE ARTICLE EDITING ============ */
+.editor-doc__edit { margin-top: 0.8rem; }
+.editor-previewbar__actions { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+.editor-previewbar .btn-ghost { color: inherit; border-color: currentColor; }
+
+/* The editing bar carries the toolbar, so it sits on the dark card colour in
+   both themes for contrast, and the page keeps room for its extra height. */
+.editor-previewbar.is-editing {
+  display: block;
+  padding: 0.6rem clamp(0.75rem, 3vw, 1.5rem);
+  background: var(--card-dark);
+  color: var(--card-dark-ink);
+}
+.editor-previewbody.is-editing { padding-bottom: 10rem; }
+
+.doc-toolbar { display: flex; flex-direction: column; gap: 0.5rem; }
+.doc-toolbar__row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.doc-toolbar__row--end { justify-content: flex-end; }
+.doc-toolbar__group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  padding-left: 0.5rem;
+  border-left: 1px solid rgba(242, 241, 233, 0.25);
+}
+.doc-tool,
+.doc-select,
+.doc-start input {
+  font: inherit;
+  font-size: 0.82rem;
+  color: inherit;
+  background: rgba(242, 241, 233, 0.1);
+  border: 1px solid rgba(242, 241, 233, 0.28);
+  border-radius: 6px;
+  min-height: 2rem;
+}
+.doc-tool { min-width: 2rem; padding: 0.2rem 0.55rem; cursor: pointer; }
+.doc-tool:hover:not(:disabled) { background: rgba(242, 241, 233, 0.22); }
+.doc-tool.is-active { background: var(--card-dark-ink); color: var(--card-dark); }
+.doc-tool:disabled,
+.doc-select:disabled { opacity: 0.4; cursor: not-allowed; }
+.doc-select { padding: 0.2rem 0.4rem; }
+.doc-select option { color: #111; background: #fff; }
+.doc-start { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.82rem; }
+.doc-start input { width: 4.2rem; padding: 0.2rem 0.4rem; }
+.doc-toolbar__hint { margin-right: auto; font-size: 0.82rem; opacity: 0.8; }
+.doc-toolbar__error { margin-right: auto; font-size: 0.85rem; color: #ffb4a8; font-weight: 600; }
+.doc-toolbar .btn { padding: 0.45rem 1rem; font-size: 0.82rem; }
+/* Site buttons are styled for the page background; on the dark bar they
+   need the inverse so both stay legible in either theme. */
+.doc-toolbar .btn-primary { background: var(--card-dark-ink); color: var(--card-dark); border-color: var(--card-dark-ink); }
+.doc-toolbar .doc-reset { background: transparent; color: var(--card-dark-ink); border: 1px solid currentColor; }
+.doc-toolbar .doc-reset:hover:not(:disabled) { background: rgba(242, 241, 233, 0.12); }
+
+/* The article while it is being edited: same type and spacing as readers
+   see, with a visible edit boundary. */
+.doc-editable {
+  outline: 2px dashed var(--line-2);
+  outline-offset: 0.9rem;
+  border-radius: 2px;
+  min-height: 12rem;
+  caret-color: var(--olive);
+}
+.doc-editable:focus { outline-color: var(--olive); }
+
+@media (max-width: 560px) {
+  .doc-toolbar__group { border-left: 0; padding-left: 0; }
+  .editor-previewbody.is-editing { padding-bottom: 16rem; }
+}

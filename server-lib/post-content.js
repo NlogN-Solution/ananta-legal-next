@@ -134,6 +134,8 @@ export function postFieldsFromBody(body = {}) {
     documentPageCount: isCanva && Number.isFinite(Number(body.document_page_count))
       ? Number(body.document_page_count)
       : null,
+    // The article was corrected by hand after extraction.
+    contentEdited: isCanva ? body.content_edited === true : null,
     seoTitle: trimOrNull(body.seo_title),
     seoDescription: trimOrNull(body.seo_description),
     processingStatus,

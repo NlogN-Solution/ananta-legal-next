@@ -31,20 +31,36 @@ export default function Services({ content }) {
       viewport={{ once: true, amount: 0.18 }}
     >
       <div className="wrap">
-        <motion.div
-          className="section-header"
-          variants={prefersReducedMotion ? undefined : staggerContainer}
-        >
-          <motion.div className="sec-label mono" variants={prefersReducedMotion ? undefined : fadeUp}>
-            {s.label}
+        <div className="svc-top">
+          <motion.div
+            className="section-header"
+            variants={prefersReducedMotion ? undefined : staggerContainer}
+          >
+            <motion.div className="sec-label mono" variants={prefersReducedMotion ? undefined : fadeUp}>
+              {s.label}
+            </motion.div>
+            <h2 className="sec-head" ref={headRef}>
+              {s.head}<span style={{ color: 'var(--olive)' }}>.</span>
+            </h2>
+            <motion.p className="sec-intro" variants={prefersReducedMotion ? undefined : fadeUp}>
+              {s.intro}
+            </motion.p>
           </motion.div>
-          <h2 className="sec-head" ref={headRef}>
-            {s.head}<span style={{ color: 'var(--olive)' }}>.</span>
-          </h2>
-          <motion.p className="sec-intro" variants={prefersReducedMotion ? undefined : fadeUp}>
-            {s.intro}
-          </motion.p>
-        </motion.div>
+
+          <motion.figure
+            className="svc-visual"
+            variants={prefersReducedMotion ? undefined : fadeUp}
+          >
+            <img
+              src="/everything-a-egal-venture-needs.png"
+              alt={s.imageAlt || ''}
+              width="1672"
+              height="941"
+              loading="lazy"
+              decoding="async"
+            />
+          </motion.figure>
+        </div>
 
         <motion.div
           className="svc-grid"

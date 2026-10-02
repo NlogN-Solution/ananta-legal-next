@@ -111,6 +111,7 @@ export async function PUT(request, { params }) {
          structured_content  = COALESCE($19::jsonb, structured_content),
          processing_status   = COALESCE($20, processing_status),
          processing_error    = NULL,
+         content_edited      = COALESCE($21, content_edited),
          published_at        = CASE
                                  WHEN COALESCE($8, published) AND published_at IS NULL THEN now()
                                  ELSE published_at
@@ -138,6 +139,7 @@ export async function PUT(request, { params }) {
         fields?.extractedText ?? null,
         fields?.structuredContent ?? null,
         fields?.processingStatus ?? null,
+        fields?.contentEdited ?? null,
       ]
     );
 

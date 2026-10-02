@@ -65,13 +65,13 @@ export async function POST(request) {
          content_type, document_url, document_public_id, document_filename,
          document_size, document_mime_type, document_page_count,
          extracted_text, structured_content, seo_title, seo_description,
-         processing_status, published_at
+         processing_status, content_edited, published_at
        ) VALUES (
          $1,$2,$3,$4,$5,$6,$7,$8,
          $9,$10,$11,$12,
          $13,$14,$15,
          $16,$17,$18,$19,
-         $20, CASE WHEN $8 THEN now() ELSE NULL END
+         $20, COALESCE($21, FALSE), CASE WHEN $8 THEN now() ELSE NULL END
        ) RETURNING *`,
       [
         slug,
@@ -94,6 +94,7 @@ export async function POST(request) {
         fields.seoTitle,
         fields.seoDescription,
         fields.processingStatus,
+        fields.contentEdited,
       ]
     );
 

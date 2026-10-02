@@ -98,6 +98,13 @@ async function runEnsureSchema() {
       ADD COLUMN IF NOT EXISTS published_at        TIMESTAMPTZ;
   `);
 
+  /* Set when an admin has corrected a Canva post's extracted article by hand,
+     so re-extracting the PDF (scripts/reprocess-pdf-posts.mjs) leaves it be. */
+  await pool.query(`
+    ALTER TABLE posts
+      ADD COLUMN IF NOT EXISTS content_edited BOOLEAN NOT NULL DEFAULT FALSE;
+  `);
+
   // Backfill published_at once for rows that predate the column.
   await pool.query(
     `UPDATE posts SET published_at = created_at WHERE published = TRUE AND published_at IS NULL`

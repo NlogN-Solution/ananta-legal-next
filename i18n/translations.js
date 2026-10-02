@@ -123,6 +123,7 @@ export const translations = {
       head: 'Everything legal a venture needs',
       intro: 'We provide the legal infrastructure for your venture without the headache. Whether you need a one-off contract or an on-call legal partner, we keep it simple, fast, and transparent. No hidden fees, no confusing legalese.',
       learnMore: 'Learn more',
+      imageAlt: 'A sunlit meeting room with a walnut table and green chairs, overlooking the city',
       items: [
         { title: 'Company Formation', desc: 'Private limited, OCR registration, PAN & VAT, and the founder paperwork - incorporated in days, not weeks.' },
         { title: 'Contract Drafting & Review', desc: 'Founder agreements, NDAs, employment, SaaS and vendor deals. Drafted tight, negotiated tighter.' },
@@ -578,6 +579,7 @@ export const translations = {
     services: {
       label: '§ ०१ / हामी के सम्हाल्छौं',
       head: 'उद्यमलाई चाहिने सबै कानुनी सेवा',
+      imageAlt: 'सहर देखिने, घामले उज्यालो बैठक कोठा, ओखरको टेबल र हरिया कुर्सीहरू सहित',
       intro: 'हामी तपाईंको उद्यमका लागि कानुनी पूर्वाधार बिना टाउको दुखाइ सुनिश्चित गर्छौं। तपाईंलाई एकपटकको करार चाहियो वा अन-कल कानुनी साझेदार, हामी साधा, छिटो र पारदर्शी बनाउँछौं। कुनै लुकेका शुल्क छैन, कुनै भ्रमित कानुनी भाषा छैन।',
       learnMore: 'थप जान्नुहोस्',
       items: [

@@ -5,14 +5,19 @@ import { useNavigate, useParams, Link } from '@/lib/router';
 import { apiUrl } from '../lib/api';
 import BlogPostView from './BlogPostView';
 import LoginGate from './admin/LoginGate';
+import { DocEditor, DocToolbar } from '../components/DocEditor';
+import { htmlToBlocks } from '../lib/doc-editing';
+import { blocksToHtml, blocksToText } from '../server-lib/pdf/blocks-to-html';
 
 /**
  * The post editor — one panel of the dashboard (/admin/blog/new, /admin/blog/:slug).
  *
  * New articles are designed in Canva, exported as PDF and uploaded here; the
  * server extracts the text into semantic HTML for search engines while the
- * stored PDF supplies the page images readers see. There is deliberately no
- * rich-text editor — Canva owns the visual design, this form owns metadata.
+ * stored PDF supplies the page images readers see. Canva owns the visual
+ * design and this form owns metadata; where extraction gets the article's
+ * structure wrong (a heading level, a list, numbering), the admin fixes it in
+ * place from the preview ("Edit content").
  *
  * Posts written with the old editor are still editable, but only their
  * metadata: their original HTML body is never sent back and so can never be
@@ -64,7 +69,7 @@ function writeDraft(value) {
 }
 
 /* ------------------------------------------------------ document uploader -- */
-function DocumentPanel({ doc, status, error, onPick, onRetry, disabled }) {
+function DocumentPanel({ doc, status, error, onPick, onRetry, onEdit, disabled }) {
   const inputRef = useRef(null);
   const activeIndex = STEP_ORDER.indexOf(status);
   const busy = status && status !== 'ready' && status !== 'failed';
@@ -128,13 +133,19 @@ function DocumentPanel({ doc, status, error, onPick, onRetry, disabled }) {
       )}
 
       {doc && status === 'ready' && (
-        <p className="editor-doc__meta">
-          <strong>{doc.filename || 'document.pdf'}</strong> — {doc.pageCount} page
-          {doc.pageCount === 1 ? '' : 's'}
-          {doc.size ? `, ${(doc.size / 1024 / 1024).toFixed(1)} MB` : ''}. Extracted{' '}
-          {doc.text ? doc.text.split(/\s+/).filter(Boolean).length.toLocaleString() : 0} words of
-          searchable text.
-        </p>
+        <>
+          <p className="editor-doc__meta">
+            <strong>{doc.filename || 'document.pdf'}</strong> — {doc.pageCount} page
+            {doc.pageCount === 1 ? '' : 's'}
+            {doc.size ? `, ${(doc.size / 1024 / 1024).toFixed(1)} MB` : ''}. Extracted{' '}
+            {doc.text ? doc.text.split(/\s+/).filter(Boolean).length.toLocaleString() : 0} words of
+            searchable text.
+            {doc.edited && ' The article has been edited by hand.'}
+          </p>
+          <button type="button" className="btn btn-ghost editor-doc__edit" onClick={onEdit} disabled={disabled}>
+            Edit content
+          </button>
+        </>
       )}
     </div>
   );
@@ -152,6 +163,15 @@ export default function BlogEditorPage() {
   const [error, setError] = useState('');
   const [previewing, setPreviewing] = useState(false);
   const editorScroll = useRef(0);
+
+  // In-place editing of the extracted article (inside the preview).
+  const [editing, setEditing] = useState(false);
+  const [editError, setEditError] = useState('');
+  const [resetting, setResetting] = useState(false);
+  const [editorKey, setEditorKey] = useState(0);
+  const editorRef = useRef(null);
+  const editingRef = useRef(false);
+  editingRef.current = editing;
 
   const [post, setPost] = useState({
     id: null,
@@ -223,6 +243,7 @@ export default function BlogEditorPage() {
             blocks: d.structured_content,
             text: d.extracted_text || '',
             html: d.content || '',
+            edited: Boolean(d.content_edited),
             // Derived server-side from the stored document, so the preview
             // shows the same pages the public page renders.
             pageImages: d.page_images || [],
@@ -255,19 +276,91 @@ export default function BlogEditorPage() {
     }
   }, []);
 
+  /* --- in-place editing -------------------------------------------------
+     The edited DOM is read back into article blocks; the server regenerates
+     the HTML from those on save, exactly as for an untouched upload. */
+  const commitEdits = useCallback(() => {
+    const el = editorRef.current;
+    if (!el) {
+      setEditing(false);
+      return true;
+    }
+    const blocks = htmlToBlocks(el);
+    if (!blocks.length) {
+      setEditError('The article can’t be empty. Add some text, or use “Reset to PDF version”.');
+      return false;
+    }
+    const html = blocksToHtml(blocks);
+    setDoc((d) => {
+      if (!d || html === blocksToHtml(d.blocks)) return d; // nothing changed
+      return { ...d, blocks, html, text: blocksToText(blocks), edited: true };
+    });
+    setPost((p) => ({ ...p, content: html }));
+    setEditError('');
+    setEditing(false);
+    return true;
+  }, []);
+
+  const resetToPdf = useCallback(async () => {
+    if (!doc) return;
+    if (!window.confirm('Discard all edits to the article and restore the text extracted from the PDF?')) {
+      return;
+    }
+    setEditError('');
+    let source = doc.original;
+    if (!source) {
+      // A saved post doesn't keep its first extraction — read the stored PDF again.
+      setResetting(true);
+      try {
+        const res = await api('/api/documents/process', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            publicId: doc.publicId,
+            secureUrl: doc.documentUrl,
+            filename: doc.filename,
+            bytes: doc.size,
+          }),
+        });
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(payload.error || 'The PDF could not be read again.');
+        source = { blocks: payload.blocks, html: payload.html, text: payload.text };
+      } catch (e) {
+        setEditError(e.message || 'The PDF could not be read again.');
+        return;
+      } finally {
+        setResetting(false);
+      }
+    }
+    setDoc((d) => ({ ...d, ...source, edited: false, original: source }));
+    setPost((p) => ({ ...p, content: source.html }));
+    setEditorKey((k) => k + 1); // re-seed the editor with the restored article
+  }, [doc]);
+
   const closePreview = useCallback(() => {
+    // Leaving the preview keeps the edits (or stays put if they can't be kept).
+    if (editingRef.current && !commitEdits()) return;
     setPreviewing(false);
     if (window.history.state?.anantaPreview) {
       window.history.back(); // consume the entry we pushed
     }
     // Put the admin back where they were in the form.
     requestAnimationFrame(() => window.scrollTo(0, editorScroll.current));
-  }, []);
+  }, [commitEdits]);
 
   useEffect(() => {
-    const onPopState = () => setPreviewing(false);
+    const onPopState = () => {
+      // Browser Back while editing: keep the edits when they can be kept.
+      if (editingRef.current && !commitEdits()) setEditing(false);
+      setPreviewing(false);
+    };
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
+  }, [commitEdits]);
+
+  const startEditing = useCallback(() => {
+    setEditError('');
+    setEditing(true);
   }, []);
 
   /* --- crash/navigation recovery for the create flow --------------------- */
@@ -363,7 +456,12 @@ export default function BlogEditorPage() {
       }
 
       setDocStatus('extracting');
-      setDoc(payload);
+      setDoc({
+        ...payload,
+        edited: false,
+        // The extraction as uploaded, for "Reset to PDF version".
+        original: { blocks: payload.blocks, html: payload.html, text: payload.text },
+      });
       setPost((p) => ({
         ...p,
         content_type: 'canva_pdf',
@@ -413,6 +511,7 @@ export default function BlogEditorPage() {
         document_size: doc.size,
         document_mime_type: doc.mimeType || 'application/pdf',
         document_page_count: doc.pageCount,
+        content_edited: Boolean(doc.edited),
       });
     }
 
@@ -491,16 +590,47 @@ export default function BlogEditorPage() {
       published_at: post.published_at || null,
       read_time: post.read_time || '',
     };
+    const canEdit = !isLegacy && Boolean(doc);
     return (
       <>
-        <div className="editor-previewbar">
-          <span>Preview — this is how the post will look. Nothing has been saved yet.</span>
-          <button type="button" className="btn btn-primary" onClick={closePreview}>
-            ← Back to editing
-          </button>
+        <div className={`editor-previewbar${editing ? ' is-editing' : ''}`}>
+          {editing ? (
+            <DocToolbar
+              editorRef={editorRef}
+              onDone={commitEdits}
+              onReset={resetToPdf}
+              resetting={resetting}
+              error={editError}
+            />
+          ) : (
+            <>
+              <span>
+                Preview — this is how the post will look. Nothing has been saved yet.
+                {doc?.edited ? ' Includes your edits.' : ''}
+              </span>
+              <span className="editor-previewbar__actions">
+                {canEdit && (
+                  <button type="button" className="btn btn-ghost" onClick={startEditing}>
+                    Edit content
+                  </button>
+                )}
+                <button type="button" className="btn btn-primary" onClick={closePreview}>
+                  ← Back to details
+                </button>
+              </span>
+            </>
+          )}
         </div>
-        <div className="editor-previewbody">
-          <BlogPostView post={draft} preview />
+        <div className={`editor-previewbody${editing ? ' is-editing' : ''}`}>
+          <BlogPostView
+            post={draft}
+            preview
+            body={
+              editing ? (
+                <DocEditor key={editorKey} html={doc.html} editorRef={editorRef} />
+              ) : null
+            }
+          />
         </div>
       </>
     );
@@ -591,8 +721,20 @@ export default function BlogEditorPage() {
             doc={doc}
             status={docStatus}
             error={docError}
-            onPick={processDocument}
+            onPick={(file) => {
+              if (
+                doc?.edited &&
+                !window.confirm('Uploading a new PDF replaces the edits you made to the article. Continue?')
+              ) {
+                return;
+              }
+              processDocument(file);
+            }}
             onRetry={() => lastFile.current && processDocument(lastFile.current)}
+            onEdit={() => {
+              openPreview();
+              startEditing();
+            }}
             disabled={saving || deleting}
           />
         )}

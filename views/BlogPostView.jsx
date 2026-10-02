@@ -24,9 +24,10 @@ function fmtDate(iso) {
  * server response for search engines instead of being fetched after hydration.
  *
  * `preview` renders the same markup for the admin's pre-publish preview, so
- * what they approve is what visitors get.
+ * what they approve is what visitors get. `body` replaces a Canva post's
+ * article with another node in the same place — the admin's in-place editor.
  */
-export default function BlogPostView({ post, preview = false }) {
+export default function BlogPostView({ post, preview = false, body = null }) {
   const { t } = useLang();
   const bp = t.blogPost;
   const authenticated = useAuth();
@@ -78,7 +79,7 @@ export default function BlogPostView({ post, preview = false }) {
         )}
         <article className="blog-post-article">
           {isCanva ? (
-            <CanvaDocument html={post.content || ''} />
+            body || <CanvaDocument html={post.content || ''} />
           ) : (
             <div
               className="blog-post-body"
