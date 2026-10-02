@@ -11,9 +11,12 @@
  * layout is acceptable, losing or scrambling text is not.
  *
  * Pipeline per page:
- *   runs -> lines (shared baseline) -> table regions -> blocks
+ *   runs + drawn bullets -> lines (shared baseline) -> table regions -> blocks
+ *
+ * Paragraphs and lists are allowed to carry over a page break, so a list that
+ * straddles two pages stays one list.
  */
-import { getDocumentProxy } from 'unpdf';
+import { getDocumentProxy, getResolvedPDFJS } from 'unpdf';
 
 /* Canva exports justified text one item per word and splits ligatures into
    their own runs ("Of" + "fi" + "ce"). Runs closer than this fraction of the
@@ -28,12 +31,27 @@ const GUTTER_RATIO = 1.8;
    heights start a new table row. */
 const ROW_BREAK_RATIO = 1.55;
 
-const BULLET_RE = /^([•‣◦▪·]|[-–—])\s+/;
+/* Typed bullet glyphs. Symbol bullets may sit flush against the text; a dash
+   only counts when a space follows it, or "-5%" would become a list. The
+   \uF0xx code points are the Wingdings/Symbol bullets Word and Canva emit. */
+const BULLET_RE = /^(?:[•‣◦▪▫·●○■□◆◇➢➤►▸✓✔]\s*|[-–—]\s+)(?=\S)/;
 const ORDERED_RE = /^(\d{1,3})[.)]\s+/;
 const ALPHA_RE = /^([a-z]|[ivxl]{1,4})[.)]\s+/i;
+const RUN_MARKER_RE = /^(\d{1,3}|[a-z]|[ivxl]{1,4})[.)]$/i;
 
 const BOLD_RE = /bold|black|heavy|semibold|extrabold|demibold/i;
 const ITALIC_RE = /italic|oblique/i;
+
+/* A paragraph that ends like this is finished, so the first line of the next
+   page starts a new one instead of continuing it. */
+const SENTENCE_END_RE = /[.!?:;]["'”’)\]]*$/;
+
+/* Canva (and most design tools) draw list bullets as small filled shapes
+   rather than typing a "•", so they never appear in the text layer. A shape
+   counts as a bullet when it sits just left of a line's first word, roughly
+   level with it, and is a small, roughly square mark. */
+const MARK_MAX = 20; // pt — anything bigger is decoration, not a bullet
+const MARK_MIN = 0.8;
 
 const median = (values) => {
   if (!values.length) return 0;
@@ -43,19 +61,27 @@ const median = (values) => {
 
 const clean = (s) => String(s ?? '').replace(/\s+/g, ' ').trim();
 
+/**
+ * Join two wrapped lines of text. A line that ends in a hyphen straight after
+ * a letter ("E-" / "Commerce") is one word broken by the wrap, so no space.
+ */
+const joinText = (a, b) => (/\p{L}-$/u.test(a) ? `${a}${b}` : `${a} ${b}`);
+
 /* ------------------------------------------------------------- reading ---- */
 
 /**
  * pdf.js hands out opaque font ids ("g_d0_f3") whose CSS fallback is always
  * "sans-serif", so bold can't be read from the text content alone. Building
  * the operator list populates commonObjs with the real embedded font names
- * ("Lora-Bold"), which is a reliable signal.
+ * ("Lora-Bold"), which is a reliable signal. The same list carries the vector
+ * drawing, which is where drawn bullets are found.
  */
-async function primeFonts(page) {
+async function loadOperators(page) {
   try {
-    await page.getOperatorList();
+    return await page.getOperatorList();
   } catch {
-    /* fonts stay unresolved; bold detection simply degrades to off */
+    /* fonts stay unresolved and no bullets are found — both degrade to off */
+    return null;
   }
 }
 
@@ -72,10 +98,92 @@ function resolveFont(page, id, cache) {
   return style;
 }
 
+let opsPromise = null;
+/** pdf.js operator codes, read from the same build unpdf loaded. */
+function pdfOps() {
+  opsPromise ??= getResolvedPDFJS()
+    .then((pdfjs) => pdfjs.OPS || null)
+    .catch(() => null);
+  return opsPromise;
+}
+
+const multiply = (m, n) => [
+  m[0] * n[0] + m[2] * n[1],
+  m[1] * n[0] + m[3] * n[1],
+  m[0] * n[2] + m[2] * n[3],
+  m[1] * n[2] + m[3] * n[3],
+  m[0] * n[4] + m[2] * n[5] + m[4],
+  m[1] * n[4] + m[3] * n[5] + m[5],
+];
+
+/**
+ * Small painted shapes on a page, in page coordinates — the candidates for
+ * drawn bullets. Tracks the transform stack so the boxes line up with the
+ * text positions pdf.js reports.
+ */
+function findMarks(opList, OPS) {
+  if (!opList || !OPS) return [];
+  const painting = new Set(
+    [
+      OPS.fill,
+      OPS.eoFill,
+      OPS.fillStroke,
+      OPS.eoFillStroke,
+      OPS.closeFillStroke,
+      OPS.closeEOFillStroke,
+      OPS.stroke,
+      OPS.closeStroke,
+    ].filter((v) => v !== undefined)
+  );
+
+  const marks = [];
+  const stack = [];
+  let ctm = [1, 0, 0, 1, 0, 0];
+  const { fnArray, argsArray } = opList;
+
+  for (let k = 0; k < fnArray.length; k++) {
+    const fn = fnArray[k];
+    const args = argsArray[k];
+    if (fn === OPS.save) stack.push(ctm);
+    else if (fn === OPS.restore) ctm = stack.pop() || ctm;
+    else if (fn === OPS.transform && args) ctm = multiply(ctm, args);
+    else if (fn === OPS.constructPath && args) {
+      // pdf.js >= 5: [paintOp, [path], bbox]. Older builds: [ops, coords, bbox]
+      // with the paint op as the next operator.
+      const paintOp = typeof args[0] === 'number' ? args[0] : fnArray[k + 1];
+      const box = args[2];
+      if (!painting.has(paintOp) || !box || box.length < 4) continue;
+      const [x0, y0, x1, y1] = box;
+      if (![x0, y0, x1, y1].every(Number.isFinite)) continue;
+      const corners = [
+        [x0, y0],
+        [x1, y0],
+        [x0, y1],
+        [x1, y1],
+      ].map(([x, y]) => [ctm[0] * x + ctm[2] * y + ctm[4], ctm[1] * x + ctm[3] * y + ctm[5]]);
+      const xs = corners.map((c) => c[0]);
+      const ys = corners.map((c) => c[1]);
+      const left = Math.min(...xs);
+      const right = Math.max(...xs);
+      const bottom = Math.min(...ys);
+      const top = Math.max(...ys);
+      const w = right - left;
+      const h = top - bottom;
+      if (w < MARK_MIN || h < MARK_MIN || w > MARK_MAX || h > MARK_MAX) continue;
+      if (w / h > 2 || h / w > 2) continue; // underlines and rules, not bullets
+      // A fill and its outline often paint the same shape twice.
+      if (marks.some((m) => Math.abs(m.left - left) < 1 && Math.abs(m.bottom - bottom) < 1)) continue;
+      marks.push({ left, right, bottom, top, w, h, cy: (top + bottom) / 2 });
+    }
+  }
+  return marks;
+}
+
 /** All positioned, styled text runs on a page, plus resolved link URLs. */
 async function readPage(pdf, pageNumber) {
   const page = await pdf.getPage(pageNumber);
-  await primeFonts(page);
+  const opList = await loadOperators(page);
+  const marks = findMarks(opList, await pdfOps());
   const content = await page.getTextContent();
 
   const links = [];
@@ -132,7 +240,7 @@ async function readPage(pdf, pageNumber) {
     });
   }
 
-  return runs;
+  return { runs, marks };
 }
 
 /* --------------------------------------------------------------- lines ---- */
@@ -168,8 +276,32 @@ function runsToSpans(runs) {
     });
 }
 
+/**
+ * The drawn bullet belonging to a line, if any: just left of its first word,
+ * level with the text, and sized like a bullet for that type size. Each mark
+ * is claimed by one line at most.
+ */
+function takeMark(line, marks, used) {
+  let best = null;
+  let bestGap = Infinity;
+  for (const m of marks) {
+    if (used.has(m)) continue;
+    const gap = line.x - m.right;
+    if (gap < -0.5 || gap > line.size * 2.5) continue;
+    if (m.cy < line.y - line.size * 0.15 || m.cy > line.y + line.size * 0.75) continue;
+    if (m.w < line.size * 0.15 || m.h < line.size * 0.15) continue;
+    if (m.w > line.size * 0.8 || m.h > line.size * 0.8) continue;
+    if (gap < bestGap) {
+      bestGap = gap;
+      best = m;
+    }
+  }
+  if (best) used.add(best);
+  return best;
+}
+
 /** Group a page's runs into visual lines, keeping the runs for later splits. */
-function groupLines(runs, page) {
+function groupLines({ runs, marks }, page) {
   const ordered = [...runs].sort((a, b) => b.y - a.y || a.x - b.x);
   const buckets = [];
   let bucket = [];
@@ -188,6 +320,7 @@ function groupLines(runs, page) {
   }
   if (bucket.length) buckets.push(bucket);
 
+  const used = new Set();
   return buckets
     .map((b) => {
       const sorted = [...b].sort((a, b2) => a.x - b2.x);
@@ -199,7 +332,7 @@ function groupLines(runs, page) {
         const gap = sorted[i].x - (sorted[i - 1].x + sorted[i - 1].width);
         if (gap > sorted[i].size * GUTTER_RATIO) gutters.push(sorted[i].x);
       }
-      return {
+      const line = {
         runs: sorted,
         spans,
         text,
@@ -211,20 +344,61 @@ function groupLines(runs, page) {
         size: median(sorted.map((r) => r.size)),
         bold: sorted.every((r) => r.bold),
       };
+      if (text.length) {
+        const mark = takeMark(line, marks, used);
+        if (mark) line.mark = mark;
+      }
+      return line;
     })
     .filter((l) => l.text.length > 0);
 }
 
+/**
+ * Mark each line `full` (it runs to the right edge of the text column, so it
+ * wrapped) or not (it stopped short, so its block ended there). The edge is
+ * where long lines end — per page when the page has enough of them, else the
+ * document's. With no long lines anywhere it stays unknown (null) and nothing
+ * relies on it.
+ */
+function markFullLines(pages) {
+  const edge = (lines) => {
+    const rights = lines
+      .filter((l) => l.text.length >= 60)
+      .map((l) => l.right)
+      .sort((a, b) => a - b);
+    return rights.length >= 3 ? rights[Math.floor(rights.length * 0.8)] : null;
+  };
+  const fallback = edge(pages.flat());
+  for (const lines of pages) {
+    const measure = edge(lines) ?? fallback;
+    for (const line of lines) {
+      line.full = measure === null ? null : line.right >= measure - line.size * 5;
+    }
+  }
+}
+
 /* ------------------------------------------------------------- headings ---- */
 
+const sizeKey = (size) => Math.round(size * 2) / 2;
+
+/* Heading sizes within this fraction of a level's usual size are the same
+   level — Canva shrinks a long heading to fit its line or pill. */
+const SAME_LEVEL_RATIO = 0.85;
+
 /**
- * Rank the distinct font sizes larger than the body size, so heading levels
- * follow the document's own hierarchy rather than fixed ratios.
+ * Rank the heading sizes the document actually uses, so heading levels follow
+ * its own hierarchy rather than fixed ratios: its section headings, anything
+ * larger, and anything smaller each get their own level, from <h2> down to
+ * <h4> (the page title is the only <h1>).
+ *
+ * A line is a heading candidate when its type is clearly larger than the body
+ * text, or a little larger and entirely bold — the usual "bold subheading a
+ * size up from the body" pattern.
  */
 function buildSizeModel(lines) {
   const weight = new Map();
   for (const line of lines) {
-    const key = Math.round(line.size * 2) / 2;
+    const key = sizeKey(line.size);
     weight.set(key, (weight.get(key) || 0) + line.text.length);
   }
   let body = 11;
@@ -235,17 +409,58 @@ function buildSizeModel(lines) {
       body = size;
     }
   }
-  // Heading level from how much bigger the type is than the body. Ratios keep
-  // the hierarchy shallow and valid (h1 title -> h2 -> h3 -> h4) no matter how
-  // many distinct sizes a Canva document happens to use.
-  const levelFor = (size) => {
-    const ratio = size / body;
-    if (ratio >= 1.5) return 2;
-    if (ratio >= 1.28) return 3;
-    if (ratio >= 1.15) return 4;
-    return 0;
+
+  // Clearly larger than the body: always a heading, and never part of a table.
+  const isDisplay = (line) => line.text.length <= 200 && line.size / body >= 1.15;
+
+  const isCandidate = (line) => {
+    if (isDisplay(line)) return true;
+    // Bold a size up from the body. Lines with an internal gutter are table
+    // rows, not headings.
+    return (
+      line.text.length <= 200 &&
+      line.size / body >= 1.1 &&
+      line.bold &&
+      !line.gutters.length
+    );
   };
-  return { body, levelFor };
+
+  // Group heading sizes into levels. A size joins the level above it when it
+  // is within SAME_LEVEL_RATIO of that level's most used size.
+  const counts = new Map();
+  for (const line of lines) {
+    if (!isCandidate(line)) continue;
+    const key = sizeKey(line.size);
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  const groups = [];
+  for (const size of [...counts.keys()].sort((a, b) => b - a)) {
+    const group = groups[groups.length - 1];
+    if (group && size >= group.mode * SAME_LEVEL_RATIO) {
+      group.sizes.push(size);
+      group.lines += counts.get(size);
+      if (counts.get(size) > counts.get(group.mode)) group.mode = size;
+    } else {
+      groups.push({ sizes: [size], mode: size, lines: counts.get(size) });
+    }
+  }
+
+  // The most used group is the document's section heading. Anything larger
+  // (a title, a cover line, a "Thank you" panel) is <h2>; the sections sit
+  // just below that, and smaller headings below them.
+  let main = 0;
+  groups.forEach((g, i) => {
+    if (g.lines > groups[main].lines) main = i;
+  });
+  const levelOf = new Map();
+  groups.forEach((g, i) => {
+    const sectionLevel = main > 0 ? 3 : 2;
+    const level = i < main ? 2 : Math.min(4, sectionLevel + (i - main));
+    for (const size of g.sizes) levelOf.set(size, level);
+  });
+
+  const levelFor = (line) => (isCandidate(line) ? levelOf.get(sizeKey(line.size)) || 0 : 0);
+  return { body, levelFor, isDisplay };
 }
 
 /* --------------------------------------------------------------- tables ---- */
@@ -275,7 +490,7 @@ function findTableRegions(lines, sizes) {
 
   // A heading never belongs to a table — the pill headings Canva sets between
   // tables would otherwise be swallowed into the row above them.
-  const isHeading = (line) => line.text.length <= 200 && sizes.levelFor(line.size) > 0;
+  const isHeading = (line) => sizes.isDisplay(line);
 
   const isTabular = (line, i) => {
     if (isHeading(line)) return false;
@@ -415,15 +630,23 @@ function regionToTable(region) {
 
 /* --------------------------------------------------------------- blocks ---- */
 
-function stripPrefix(spans, count) {
+/** Remove a list marker from the front of a line's spans. Whitespace is not
+    counted, so the cut lands in the same place however the runs were spaced. */
+function stripMarker(spans, marker) {
+  let remaining = marker.replace(/\s+/g, '').length;
   const out = [];
-  let remaining = count;
   for (const span of spans) {
-    if (remaining <= 0) out.push({ ...span });
-    else if (span.text.length > remaining) {
-      out.push({ ...span, text: span.text.slice(remaining) });
-      remaining = 0;
-    } else remaining -= span.text.length;
+    if (remaining <= 0) {
+      out.push({ ...span });
+      continue;
+    }
+    let i = 0;
+    while (i < span.text.length && remaining > 0) {
+      if (!/\s/.test(span.text[i])) remaining -= 1;
+      i += 1;
+    }
+    const rest = span.text.slice(i);
+    if (rest.length) out.push({ ...span, text: rest });
   }
   if (out.length) out[0].text = out[0].text.replace(/^\s+/, '');
   return out.filter((s) => s.text.length);
@@ -431,20 +654,136 @@ function stripPrefix(spans, count) {
 
 function joinSpans(a, b) {
   const out = a.map((s) => ({ ...s }));
+  const next = b.map((s) => ({ ...s }));
   const last = out[out.length - 1];
-  const first = b[0];
-  if (last && first && !!last.bold === !!first.bold && last.href === first.href) {
-    last.text = `${last.text} ${first.text}`;
-    return out.concat(b.slice(1).map((s) => ({ ...s })));
+  if (!last || !next.length) return out.concat(next);
+  const glue = /\p{L}-$/u.test(last.text) ? '' : ' ';
+  const first = next[0];
+  if (
+    !!last.bold === !!first.bold &&
+    !!last.italic === !!first.italic &&
+    last.href === first.href
+  ) {
+    last.text = `${last.text}${glue}${first.text}`;
+    return out.concat(next.slice(1));
   }
-  if (last) last.text = `${last.text} `;
-  return out.concat(b.map((s) => ({ ...s })));
+  last.text = `${last.text}${glue}`;
+  return out.concat(next);
 }
 
-/** Convert the non-table lines of a page into headings, lists and paragraphs. */
-function flowToBlocks(lines, sizes, out) {
+/* ---------------------------------------------------------------- lists ---- */
+
+const ROMAN = { i: 1, v: 5, x: 10, l: 50 };
+
+function romanValue(token) {
+  const s = token.toLowerCase();
+  if (!/^[ivxl]+$/.test(s)) return 0;
+  let total = 0;
+  for (let i = 0; i < s.length; i++) {
+    const v = ROMAN[s[i]];
+    total += v < (ROMAN[s[i + 1]] || 0) ? -v : v;
+  }
+  return total;
+}
+
+/**
+ * Where a line's text begins after its marker, when the marker is a run of
+ * its own ("1." then a gap, then the text). null when the marker shares a run
+ * with the text, so the indent can't be measured.
+ */
+function textStart(line, marker) {
+  const want = marker.replace(/\s+/g, '').length;
+  let seen = 0;
+  for (const run of line.runs) {
+    if (seen === want) return run.x;
+    if (seen > want) return null;
+    seen += run.str.replace(/\s+/g, '').length;
+  }
+  return null;
+}
+
+/** The list marker a line starts with, if any — drawn, typed or numbered. */
+function readMarker(line) {
+  if (line.mark) {
+    return { ordered: false, drawn: true, prefix: '', markerX: line.mark.left, textX: line.x };
+  }
+  const bullet = BULLET_RE.exec(line.text);
+  if (bullet) {
+    return {
+      ordered: false,
+      symbol: !/^[-–—]/.test(bullet[0]),
+      prefix: bullet[0],
+      markerX: line.x,
+      textX: textStart(line, bullet[0]),
+    };
+  }
+  let m = ORDERED_RE.exec(line.text) || ALPHA_RE.exec(line.text);
+  // A number set as its own run is a marker even when the gap to the text is
+  // too narrow to read as a space ("iii." tabbed tight against its text).
+  const head = line.runs.length > 1 ? line.runs[0].str.trim() : '';
+  if (!m && head && line.text.startsWith(head)) m = RUN_MARKER_RE.exec(head);
+  if (!m) return null;
+  return {
+    ordered: true,
+    token: m[1],
+    prefix: m[0],
+    markerX: line.x,
+    textX: textStart(line, m[0]),
+  };
+}
+
+/**
+ * Numbering style and value of an ordered marker. "i." is ambiguous between
+ * the ninth letter and roman one, so the list it would continue decides.
+ */
+function orderedStyle(token, ctx) {
+  if (/^\d+$/.test(token)) return { style: '1', value: Number(token) };
+  const lower = token.toLowerCase();
+  const upper = token !== lower;
+  const alpha = lower.length === 1 ? { style: upper ? 'A' : 'a', value: lower.charCodeAt(0) - 96 } : null;
+  const rv = romanValue(lower);
+  const roman = rv ? { style: upper ? 'I' : 'i', value: rv } : null;
+  if (alpha && roman) {
+    if (ctx?.style?.toLowerCase() === 'a' && ctx.next === alpha.value) return alpha;
+    if (ctx?.style?.toLowerCase() === 'i' && ctx.next === roman.value) return roman;
+    return lower === 'i' ? roman : alpha;
+  }
+  return alpha || roman;
+}
+
+/* ----------------------------------------------------------------- flow ---- */
+
+/**
+ * Turns the non-table lines of the whole document, in reading order, into
+ * headings, paragraphs and (possibly nested) lists.
+ *
+ * State lives across pages so a paragraph or list broken by a page break is
+ * rejoined. `close()` ends whatever is open — called before a table and at
+ * the end of the document.
+ */
+function createFlow(sizes, out) {
   let paragraph = null;
-  let list = null;
+  // Open lists, outermost first. Only the outermost is in `out`; the others
+  // hang off the last item of the list above them.
+  let stack = [];
+  // The outermost list closed most recently, so numbering that resumes after
+  // an interruption ("4." after a paragraph) is recognised as a list item.
+  let recent = null;
+  // The last line taken into the flow.
+  let last = null;
+
+  const tolFor = (line) => Math.max(4, line.size * 0.6);
+
+  /** Does `line` sit close enough under the previous one to share a block? */
+  const follows = (line, gapLines) => {
+    if (!last) return false;
+    if (line.page === last.page) {
+      const gap = last.y - line.y;
+      return gap > 0 && gap <= line.size * gapLines;
+    }
+    // The first line of the next page picks up where the last page ended.
+    return line.page === last.page + 1;
+  };
 
   const flushParagraph = () => {
     if (paragraph?.spans.length) {
@@ -457,18 +796,128 @@ function flowToBlocks(lines, sizes, out) {
     }
     paragraph = null;
   };
-  const flushList = () => {
-    if (list?.items.length) out.push(list);
-    list = null;
+
+  const closeLists = () => {
+    if (!stack.length) return;
+    const root = stack[0];
+    if (root.ordered) {
+      recent = { markerX: root.markerX, ordered: true, style: root.style, next: root.next };
+    }
+    out.push(root.block);
+    stack = [];
   };
 
-  for (const line of lines) {
-    // Long lines are body copy however large the type is — a heading is short.
-    const level = line.text.length <= 200 ? sizes.levelFor(line.size) : 0;
+  /** The open (or just closed) numbered list a marker at this indent would extend. */
+  const orderedContext = (marker, tol) => {
+    for (let i = stack.length - 1; i >= 0; i--) {
+      const e = stack[i];
+      if (e.ordered && Math.abs(e.markerX - marker.markerX) <= tol) return e;
+    }
+    if (recent && Math.abs(recent.markerX - marker.markerX) <= tol) return recent;
+    return null;
+  };
 
+  const paragraphContinues = (line) =>
+    Boolean(paragraph) &&
+    Math.abs(line.size - paragraph.size) < 1.2 &&
+    Math.abs(line.x - paragraph.x) < 26 &&
+    follows(line, 2.6) &&
+    // A short last line that ends a sentence is the end of the paragraph.
+    !(last.full === false && SENTENCE_END_RE.test(paragraph.text)) &&
+    // Across a page break only an unfinished sentence carries on.
+    (line.page === paragraph.lastPage || !SENTENCE_END_RE.test(paragraph.text));
+
+  /** The open list item a marker-less line would wrap into, with its depth. */
+  const listTarget = (line) => {
+    if (!stack.length || !follows(line, 2.6)) return null;
+    const tol = tolFor(line);
+    for (let i = stack.length - 1; i >= 0; i--) {
+      const e = stack[i];
+      if (Math.abs(line.size - e.size) >= 1.2) continue;
+      const item = e.block.items[e.block.items.length - 1];
+      const aligned =
+        e.textX != null
+          ? Math.abs(line.x - e.textX) <= tol
+          : line.x > e.markerX + tol && line.x <= e.markerX + line.size * 5;
+      // Lists without a hanging indent wrap back under the marker; that is
+      // only a wrap when the line above ran to the margin mid-sentence.
+      const wrapsUnder =
+        i === stack.length - 1 &&
+        Math.abs(line.x - e.markerX) <= tol &&
+        last?.full === true &&
+        !SENTENCE_END_RE.test(item.text);
+      if (aligned || wrapsUnder) return { depth: i, item };
+    }
+    return null;
+  };
+
+  const openList = (line, marker, parent) => {
+    const block = { type: 'list', ordered: marker.ordered, items: [], page: line.page };
+    if (marker.ordered && marker.style !== '1') block.style = marker.style;
+    if (parent) {
+      const host = parent.block.items[parent.block.items.length - 1];
+      (host.children ??= []).push(block);
+    }
+    const entry = {
+      block,
+      ordered: marker.ordered,
+      style: marker.style,
+      markerX: marker.markerX,
+      textX: marker.textX,
+      size: line.size,
+      next: null,
+    };
+    stack.push(entry);
+    return entry;
+  };
+
+  const addItem = (line, marker) => {
+    const tol = tolFor(line);
+    if (stack.length && !follows(line, 4)) closeLists();
+    // Step out of sub-lists that are indented deeper than this marker.
+    while (stack.length > 1 && stack[stack.length - 1].markerX > marker.markerX + tol) stack.pop();
+    if (stack.length && stack[0].markerX > marker.markerX + tol) closeLists();
+
+    const sameKind = (e) => e.ordered === marker.ordered && (!marker.ordered || e.style === marker.style);
+    let entry = stack[stack.length - 1] || null;
+    if (entry && Math.abs(entry.markerX - marker.markerX) <= tol) {
+      if (!sameKind(entry)) {
+        // A different kind of list at the same indent is a new list.
+        if (stack.length === 1) {
+          closeLists();
+          entry = openList(line, marker, null);
+        } else {
+          stack.pop();
+          entry = openList(line, marker, stack[stack.length - 1]);
+        }
+      }
+    } else if (entry) {
+      entry = openList(line, marker, entry); // deeper indent: a sub-list
+    } else {
+      entry = openList(line, marker, null);
+    }
+
+    const item = {
+      spans: marker.prefix ? stripMarker(line.spans, marker.prefix) : line.spans.map((s) => ({ ...s })),
+      text: clean(line.text.slice(marker.prefix.length)),
+    };
+    if (marker.ordered) {
+      item.value = marker.value;
+      entry.next = marker.value + 1;
+    }
+    entry.block.items.push(item);
+    entry.size = line.size;
+  };
+
+  const remember = (line) => {
+    last = { page: line.page, y: line.y, full: line.full };
+  };
+
+  const push = (line) => {
+    const level = sizes.levelFor(line);
     if (level) {
       flushParagraph();
-      flushList();
+      closeLists();
       // A heading that wraps onto a second line at the same size is one heading.
       const previous = out[out.length - 1];
       if (
@@ -478,59 +927,86 @@ function flowToBlocks(lines, sizes, out) {
         previous._y !== undefined &&
         previous._y - line.y < line.size * 2.2
       ) {
-        previous.text = `${previous.text} ${line.text}`.trim();
+        previous.text = joinText(previous.text, line.text).trim();
         previous._y = line.y;
       } else {
         out.push({ type: 'heading', level, text: line.text, page: line.page, _y: line.y });
       }
-      continue;
+      remember(line);
+      return;
     }
 
-    const bullet = BULLET_RE.exec(line.text);
-    const ordered = ORDERED_RE.exec(line.text) || ALPHA_RE.exec(line.text);
-    if (bullet || ordered) {
-      flushParagraph();
-      const isOrdered = Boolean(ordered);
-      const marker = (bullet || ordered)[0];
-      if (!list || list.ordered !== isOrdered) {
-        flushList();
-        list = { type: 'list', ordered: isOrdered, items: [], page: line.page };
+    let marker = readMarker(line);
+    if (marker?.ordered) Object.assign(marker, orderedStyle(marker.token, orderedContext(marker, tolFor(line))));
+
+    // A wrapped line can happen to begin like a marker ("7. " or "– "). When
+    // the line above ran to the margin mid-sentence, a typed marker only
+    // counts if it is the expected next item of a list.
+    if (marker && !marker.drawn && !marker.symbol && last?.full === true) {
+      const target = listTarget(line);
+      const before = paragraphContinues(line) ? paragraph.text : target ? target.item.text : null;
+      if (before !== null && !SENTENCE_END_RE.test(before)) {
+        const ctx = marker.ordered ? orderedContext(marker, tolFor(line)) : null;
+        const expected = marker.ordered
+          ? marker.value === 1 || (ctx && ctx.style === marker.style && ctx.next === marker.value)
+          : stack.some((e) => !e.ordered && Math.abs(e.markerX - marker.markerX) <= tolFor(line));
+        if (!expected) marker = null;
       }
-      list.items.push({
-        spans: stripPrefix(line.spans, marker.length),
-        text: clean(line.text.slice(marker.length)),
-      });
-      continue;
     }
 
-    flushList();
+    if (marker) {
+      flushParagraph();
+      addItem(line, marker);
+      remember(line);
+      return;
+    }
 
-    const continues =
-      paragraph &&
-      line.page === paragraph.page &&
-      Math.abs(line.size - paragraph.size) < 1.2 &&
-      Math.abs(line.x - paragraph.x) < 26 &&
-      paragraph.y - line.y < line.size * 2.6;
+    const target = listTarget(line);
+    // Text after a sub-list can't be folded back into its item without
+    // reordering it, so it ends the list and stays a paragraph.
+    if (target && !target.item.children?.length) {
+      stack.length = target.depth + 1;
+      target.item.spans = joinSpans(target.item.spans, line.spans);
+      target.item.text = target.item.text ? joinText(target.item.text, line.text) : line.text;
+      remember(line);
+      return;
+    }
 
-    if (continues) {
+    closeLists();
+
+    if (paragraphContinues(line)) {
       paragraph.spans = joinSpans(paragraph.spans, line.spans);
-      paragraph.text = `${paragraph.text} ${line.text}`;
-      paragraph.y = line.y;
+      paragraph.text = joinText(paragraph.text, line.text);
+      paragraph.lastPage = line.page;
     } else {
       flushParagraph();
       paragraph = {
         spans: line.spans.map((s) => ({ ...s })),
         text: line.text,
         page: line.page,
+        lastPage: line.page,
         size: line.size,
         x: line.x,
-        y: line.y,
       };
     }
-  }
+    remember(line);
+  };
 
-  flushParagraph();
-  flushList();
+  const close = () => {
+    flushParagraph();
+    closeLists();
+    last = null;
+  };
+
+  return { push, close };
+}
+
+/** Plain text of a list, sub-lists included, one item per line. */
+function listText(list) {
+  return (list.items || [])
+    .flatMap((item) => [item.text, ...(item.children || []).map(listText)])
+    .filter(Boolean)
+    .join('\n');
 }
 
 /* ----------------------------------------------------------------- api ---- */
@@ -554,8 +1030,10 @@ export async function extractPdf(data) {
     pages.push(groupLines(await readPage(pdf, n), n));
   }
 
+  markFullLines(pages);
   const sizes = buildSizeModel(pages.flat());
   const blocks = [];
+  const flow = createFlow(sizes, blocks);
 
   for (const lines of pages) {
     const regions = findTableRegions(lines, sizes);
@@ -569,22 +1047,20 @@ export async function extractPdf(data) {
       tableAt.set(region.lines[0], table);
     }
 
-    let buffer = [];
     for (const line of lines) {
       if (tableAt.has(line)) {
-        flowToBlocks(buffer, sizes, blocks);
-        buffer = [];
+        flow.close();
         blocks.push(tableAt.get(line));
       }
-      if (!claimed.has(line)) buffer.push(line);
+      if (!claimed.has(line)) flow.push(line);
     }
-    flowToBlocks(buffer, sizes, blocks);
   }
+  flow.close();
 
   const text = blocks
     .map((b) => {
       if (b.type === 'heading' || b.type === 'paragraph') return b.text;
-      if (b.type === 'list') return b.items.map((i) => i.text).join('\n');
+      if (b.type === 'list') return listText(b);
       if (b.type === 'table') return [b.headers, ...b.rows].map((r) => r.join(' — ')).join('\n');
       return '';
     })

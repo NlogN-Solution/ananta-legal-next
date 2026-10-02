@@ -6,10 +6,16 @@
  * text node is escaped and only the fixed tag set below is ever emitted, a
  * hostile payload can't inject markup, so no HTML sanitizer is needed.
  *
- * Tags emitted: h2 h3 h4 p ul ol li table thead tbody tr th td strong a
+ * Tags emitted: h2 h3 h4 p ul ol li table thead tbody tr th td strong em a
+ * Attributes emitted besides links: ol `type` / `start` and li `value`, so a
+ * list is numbered exactly as the document numbered it.
  * The output deliberately uses no classes or inline styles so it inherits the
  * site's existing `.blog-post-body` rules in styles/blog.css.
  */
+
+/* How deep sub-lists may nest — matches the sanitizer in post-content.js. */
+export const MAX_LIST_DEPTH = 4;
+const OL_TYPES = new Set(['1', 'a', 'A', 'i', 'I']);
 
 export function escapeHtml(value) {
   return String(value ?? '').replace(
@@ -33,16 +39,57 @@ function renderSpans(spans, fallbackText = '') {
   }
   return spans
     .map((span) => {
-      const text = escapeHtml(span?.text ?? '');
-      if (!text) return '';
-      let out = span?.bold ? `<strong>${text}</strong>` : text;
+      const raw = String(span?.text ?? '');
+      if (!raw) return '';
+      // Keep a span's edge spaces outside its tags, so a bold phrase or a
+      // link never starts or ends with an underlined/bold space.
+      const [, lead, core, trail] = /^(\s*)([\s\S]*?)(\s*)$/.exec(raw);
+      if (!core) return escapeHtml(raw);
+      let out = escapeHtml(core);
+      if (span?.italic) out = `<em>${out}</em>`;
+      if (span?.bold) out = `<strong>${out}</strong>`;
       const href = safeHref(span?.href);
       if (href) {
         out = `<a href="${escapeHtml(href)}" rel="noopener nofollow" target="_blank">${out}</a>`;
       }
-      return out;
+      return `${escapeHtml(lead)}${out}${escapeHtml(trail)}`;
     })
     .join('');
+}
+
+const positiveInt = (v) => (Number.isInteger(v) && v > 0 ? v : null);
+
+function renderList(block, depth = 0) {
+  if (depth >= MAX_LIST_DEPTH) return '';
+  const ordered = Boolean(block.ordered);
+  const items = (Array.isArray(block.items) ? block.items : [])
+    .map((item) => {
+      const html = renderSpans(item?.spans, item?.text);
+      const children = (Array.isArray(item?.children) ? item.children : [])
+        .map((child) => renderList(child, depth + 1))
+        .join('');
+      return { html, children, value: ordered ? positiveInt(item?.value) : null };
+    })
+    .filter((item) => item.html.trim() || item.children);
+  if (!items.length) return '';
+
+  if (!ordered) {
+    return `<ul>${items.map((i) => `<li>${i.html}${i.children}</li>`).join('')}</ul>`;
+  }
+
+  // Number exactly as the document did: a list that starts past 1 gets
+  // `start`, and an item that skips ahead gets its own `value`.
+  const attrs = [];
+  if (OL_TYPES.has(block.style) && block.style !== '1') attrs.push(`type="${block.style}"`);
+  const first = items[0].value;
+  if (first && first !== 1) attrs.push(`start="${first}"`);
+  let expected = first || 1;
+  const lis = items.map((item) => {
+    const value = item.value && item.value !== expected ? ` value="${item.value}"` : '';
+    expected = (item.value || expected) + 1;
+    return `<li${value}>${item.html}${item.children}</li>`;
+  });
+  return `<ol${attrs.length ? ` ${attrs.join(' ')}` : ''}>${lis.join('')}</ol>`;
 }
 
 function renderTable(block) {
@@ -89,13 +136,8 @@ export function blocksToHtml(blocks) {
         break;
       }
       case 'list': {
-        const tag = block.ordered ? 'ol' : 'ul';
-        const items = (Array.isArray(block.items) ? block.items : [])
-          .map((item) => renderSpans(item?.spans, item?.text))
-          .filter((html) => html.trim())
-          .map((html) => `<li>${html}</li>`)
-          .join('');
-        if (items) parts.push(`<${tag}>${items}</${tag}>`);
+        const html = renderList(block);
+        if (html) parts.push(html);
         break;
       }
       case 'table': {
@@ -115,14 +157,19 @@ export function blocksToHtml(blocks) {
 export function blocksToText(blocks) {
   if (!Array.isArray(blocks)) return '';
   const out = [];
+  const pushList = (list, depth = 0) => {
+    if (depth >= MAX_LIST_DEPTH) return;
+    for (const item of list?.items || []) {
+      out.push(item.text || (item.spans || []).map((s) => s.text).join(''));
+      for (const child of item.children || []) pushList(child, depth + 1);
+    }
+  };
   for (const block of blocks) {
     if (!block) continue;
     if (block.type === 'heading' || block.type === 'paragraph') {
       out.push(block.text || (block.spans || []).map((s) => s.text).join(''));
     } else if (block.type === 'list') {
-      for (const item of block.items || []) {
-        out.push(item.text || (item.spans || []).map((s) => s.text).join(''));
-      }
+      pushList(block);
     } else if (block.type === 'table') {
       for (const row of [block.headers || [], ...(block.rows || [])]) {
         out.push((row || []).join(' '));

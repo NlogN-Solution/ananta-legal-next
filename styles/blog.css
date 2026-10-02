@@ -127,6 +127,8 @@
 .blog-post-body--doc h3 + h4{margin-top:.6rem}
 .blog-post-body--doc ul,
 .blog-post-body--doc ol{margin:.6rem 0 1.1rem 1.35rem}
+.blog-post-body--doc li > ul,
+.blog-post-body--doc li > ol{margin:.3rem 0 0 1.35rem}
 .blog-post-body--doc li{margin-bottom:.3rem}
 .blog-post-body--doc li:last-child{margin-bottom:0}
 .blog-post-body--doc table{margin:1.2rem 0}

@@ -1,4 +1,4 @@
-import { blocksToHtml, blocksToText } from './pdf/blocks-to-html';
+import { blocksToHtml, blocksToText, MAX_LIST_DEPTH } from './pdf/blocks-to-html.js';
 
 /**
  * Shared normalisation for the create/update endpoints.
@@ -35,6 +35,29 @@ function sanitizeBlocks(input) {
       })
       .filter((s) => s.text.length);
 
+  const LIST_STYLES = new Set(['1', 'a', 'A', 'i', 'I']);
+  const list = (raw, page, depth = 0) => {
+    if (depth >= MAX_LIST_DEPTH) return null;
+    const ordered = Boolean(raw?.ordered);
+    const items = (Array.isArray(raw?.items) ? raw.items : [])
+      .map((i) => {
+        const item = { spans: spans(i?.spans), text: str(i?.text).trim() };
+        const value = Number(i?.value);
+        if (ordered && Number.isInteger(value) && value > 0 && value < 100000) item.value = value;
+        const children = (Array.isArray(i?.children) ? i.children : [])
+          .map((c) => list(c, undefined, depth + 1))
+          .filter(Boolean);
+        if (children.length) item.children = children;
+        return item;
+      })
+      .filter((i) => i.spans.length || i.text || i.children);
+    if (!items.length) return null;
+    const out = { type: 'list', ordered, items };
+    if (ordered && LIST_STYLES.has(raw?.style) && raw.style !== '1') out.style = raw.style;
+    if (page !== undefined) out.page = page;
+    return out;
+  };
+
   const blocks = [];
   for (const raw of input) {
     if (!raw || typeof raw !== 'object') continue;
@@ -55,10 +78,8 @@ function sanitizeBlocks(input) {
       const text = str(raw.text).trim();
       if (s.length || text) blocks.push({ type: 'paragraph', spans: s, text, page });
     } else if (raw.type === 'list') {
-      const items = (Array.isArray(raw.items) ? raw.items : [])
-        .map((i) => ({ spans: spans(i?.spans), text: str(i?.text).trim() }))
-        .filter((i) => i.spans.length || i.text);
-      if (items.length) blocks.push({ type: 'list', ordered: Boolean(raw.ordered), items, page });
+      const block = list(raw, page);
+      if (block) blocks.push(block);
     } else if (raw.type === 'table') {
       const row = (r) => (Array.isArray(r) ? r.map(str) : []);
       const headers = row(raw.headers);
